@@ -1,0 +1,24 @@
+use std::time::Duration;
+
+use tokio::time::sleep;
+
+use crate::{Command, Hackshell};
+
+pub struct Sleep {}
+
+#[async_trait::async_trait]
+impl<C, I> Command<C, I> for Sleep {
+    fn commands(&self) -> &'static [&'static str] {
+        &["sleep"]
+    }
+
+    async fn run(&self, _s: &Hackshell<C, I>, cmd: &[&str], _ctx: &C) -> Result<(), String> {
+        if cmd.len() == 2 {
+            let duration = cmd[1].parse::<u64>().map_err(|e| e.to_string())?;
+            sleep(Duration::from_secs(duration)).await;
+            return Ok(());
+        } else {
+            return Err("Invalid number of arguments".to_string());
+        }
+    }
+}
