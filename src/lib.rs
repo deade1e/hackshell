@@ -4,7 +4,7 @@ use tokio::io::{self};
 
 mod commands;
 
-use commands::sleep::Sleep;
+use commands::{exit::Exit, sleep::Sleep};
 
 // struct Task {
 //     name: String,
