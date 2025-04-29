@@ -16,9 +16,9 @@ use commands::sleep::Sleep;
 pub enum Event {
     Line(String),
     CTRLC,
-    EOF,    // CTRL + d
+    EOF, // CTRL + d
     TAB,
-    SUB     // CTRL + z
+    SUB, // CTRL + z
 }
 
 pub trait InputProvider {
