@@ -25,12 +25,12 @@ impl<R: AsyncRead + Unpin> InputProvider for MyInputProvider<R> {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), String> {
     let ctx = Context {};
     let myip = MyInputProvider::new().await;
     let s = Hackshell::new(ctx, myip, "> ", None).await;
 
     loop {
-        s.run().await;
+        s.run().await?;
     }
 }
