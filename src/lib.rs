@@ -28,6 +28,8 @@ pub trait InputProvider {
 #[async_trait::async_trait]
 pub trait Command<C, I>: Send + Sync + 'static {
     fn commands(&self) -> &'static [&'static str];
+    
+    fn help(&self) -> &'static str;
 
     async fn run(&self, s: &Hackshell<C, I>, cmd: &[String], ctx: &C) -> Result<(), String>;
 }
