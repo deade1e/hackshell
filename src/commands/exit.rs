@@ -9,6 +9,10 @@ impl<C, I> Command<C, I> for Exit {
         &["exit"]
     }
 
+    fn help(&self) -> &'static str {
+        "Exits the program"
+    }
+
     async fn run(&self, _s: &Hackshell<C, I>, cmd: &[String], _ctx: &C) -> Result<(), String> {
         std::process::exit(0);
     }

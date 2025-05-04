@@ -12,6 +12,10 @@ impl<C, I> Command<C, I> for Sleep {
         &["sleep"]
     }
 
+    fn help(&self) -> &'static str {
+        "Sleeps for a specific amount of time. Syntax: sleep <seconds>"
+    }
+
     async fn run(&self, _s: &Hackshell<C, I>, cmd: &[String], _ctx: &C) -> Result<(), String> {
         if cmd.len() == 2 {
             let duration = cmd[1].parse::<u64>().map_err(|e| e.to_string())?;
