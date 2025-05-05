@@ -385,8 +385,8 @@ dependencies = [
 
 [[package]]
 name = "readline"
-version = "0.1.6"
-source = "git+https://github.com/pfrankw/readline.git#70509963b98e2df515f42d2d4c1627a1b0d5c7e7"
+version = "0.1.7"
+source = "git+https://github.com/pfrankw/readline.git#f8cd4d8dd24116325c0b35877a1a48cac77ed109"
 dependencies = [
  "crossterm",
  "tokio",

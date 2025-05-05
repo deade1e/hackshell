@@ -3,7 +3,7 @@ use crate::{Command, Hackshell};
 pub struct Help {}
 
 #[async_trait::async_trait]
-impl<C, I> Command<C, I> for Help {
+impl<C> Command<C> for Help {
     fn commands(&self) -> &'static [&'static str] {
         &["help"]
     }
@@ -12,7 +12,7 @@ impl<C, I> Command<C, I> for Help {
         "Displays this message"
     } 
 
-    async fn run(&self, s: &Hackshell<C, I>, _: &[String], _: &C) -> Result<(), String> {
+    async fn run(&self, s: &Hackshell<C>, _: &[String], _: &C) -> Result<(), String> {
         Ok(())
     }
 }

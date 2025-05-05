@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use tokio::io::{self};
+use readline::{Event, Readline};
+use tokio::io::{self, stdin, AsyncRead, Stdin};
 
 mod commands;
 
@@ -13,44 +14,44 @@ use commands::{exit::Exit, sleep::Sleep};
 //     terminate: watch::Sender<()>,
 // }
 
-pub enum Event {
-    Line(String),
-    CTRLC,
-    EOF, // CTRL + d
-    TAB,
-    SUB, // CTRL + z
-}
+// pub enum Event {
+//     Line(String),
+//     CTRLC,
+//     EOF, // CTRL + d
+//     TAB,
+//     SUB, // CTRL + z
+// }
 
 pub trait InputProvider {
     async fn read_line(&self) -> io::Result<Event>;
 }
 
 #[async_trait::async_trait]
-pub trait Command<C, I>: Send + Sync + 'static {
+pub trait Command<C>: Send + Sync + 'static {
     fn commands(&self) -> &'static [&'static str];
     
     fn help(&self) -> &'static str;
 
-    async fn run(&self, s: &Hackshell<C, I>, cmd: &[String], ctx: &C) -> Result<(), String>;
+    async fn run(&self, s: &Hackshell<C>, cmd: &[String], ctx: &C) -> Result<(), String>;
 }
 
-struct InnerHackshell<C, I> {
+struct InnerHackshell<C> {
     ctx: C,
-    ip: I,
-    commands: HashMap<String, Arc<dyn Command<C, I>>>,
+    rl: Readline<Stdin>,
+    commands: HashMap<String, Arc<dyn Command<C>>>,
     // tasks: RwLock<Vec<Task>>,
 }
 
-pub struct Hackshell<C, I> {
-    inner: InnerHackshell<C, I>,
+pub struct Hackshell<C> {
+    inner: InnerHackshell<C>,
 }
 
-impl<C, I> Hackshell<C, I> {
-    pub async fn new(ctx: C, ip: I, prompt: &str, history_file: Option<&Path>) -> Self {
+impl<C> Hackshell<C> {
+    pub async fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> Self {
         let mut s = Self {
             inner: InnerHackshell {
                 ctx,
-                ip,
+                rl: Readline::new(stdin(), prompt, history_file).await,
                 commands: Default::default(), // tasks: Default::default()
             },
         };
@@ -61,7 +62,7 @@ impl<C, I> Hackshell<C, I> {
         s
     }
 
-    pub fn add_command(&mut self, command: impl Command<C, I> + 'static) {
+    pub fn add_command(&mut self, command: impl Command<C> + 'static) {
         let c = Arc::new(command);
 
         c.commands().iter().for_each(|cmd| {
@@ -70,9 +71,9 @@ impl<C, I> Hackshell<C, I> {
     }
 }
 
-impl<C: 'static, I: InputProvider + 'static> Hackshell<C, I> {
+impl<C: 'static> Hackshell<C> {
     pub async fn run(&self) -> Result<(), String> {
-        let line = self.inner.ip.read_line().await.map_err(|e| e.to_string())?;
+        let line = self.inner.rl.run().await.map_err(|e| e.to_string())?;
 
         match line {
             Event::Line(line) => {

@@ -2,9 +2,8 @@ use crate::{Command, Hackshell};
 
 pub struct Exit {}
 
-
 #[async_trait::async_trait]
-impl<C, I> Command<C, I> for Exit {
+impl<C> Command<C> for Exit {
     fn commands(&self) -> &'static [&'static str] {
         &["exit"]
     }
@@ -13,7 +12,7 @@ impl<C, I> Command<C, I> for Exit {
         "Exits the program"
     }
 
-    async fn run(&self, _s: &Hackshell<C, I>, cmd: &[String], _ctx: &C) -> Result<(), String> {
+    async fn run(&self, _s: &Hackshell<C>, cmd: &[String], _ctx: &C) -> Result<(), String> {
         std::process::exit(0);
     }
 }
