@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 use taskpool::TaskPool;
 use tokio::{
     io::{Stdin, stdin},
-    task::JoinHandle,
+    sync::RwLock,
 };
 
 mod commands;
@@ -26,44 +26,55 @@ pub trait Command<C>: Send + Sync + 'static {
 
     fn help(&self) -> &'static str;
 
-    async fn run(&self, cmd: &[String], ctx: &C) -> Result<(), String>;
+    async fn run(&self, s: &Hackshell<C>, cmd: &[String], ctx: &C) -> Result<(), String>;
 }
 
 struct InnerHackshell<C> {
     ctx: C,
     rl: Readline<Stdin>,
-    commands: HashMap<String, Arc<dyn Command<C>>>,
+    commands: RwLock<HashMap<String, Arc<dyn Command<C>>>>,
     pool: TaskPool,
-    // tasks: RwLock<Vec<Task>>,
 }
 
 pub struct Hackshell<C> {
-    inner: InnerHackshell<C>,
+    inner: Arc<InnerHackshell<C>>,
+}
+
+impl<C> Clone for Hackshell<C> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl<C> Hackshell<C> {
     pub async fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> Self {
         let mut s = Self {
-            inner: InnerHackshell {
+            inner: Arc::new(InnerHackshell {
                 ctx,
                 rl: Readline::new(stdin(), prompt, history_file).await,
                 commands: Default::default(),
                 pool: Default::default(),
-            },
+            }),
         };
 
-        s.add_command(Sleep {});
-        s.add_command(Exit {});
+        s.add_command(Sleep {}).await;
+        s.add_command(Exit {}).await;
 
         s
     }
 
-    pub fn add_command(&mut self, command: impl Command<C> + 'static) {
+    pub async fn add_command(&mut self, command: impl Command<C> + 'static) {
         let c = Arc::new(command);
 
-        c.commands().iter().for_each(|cmd| {
-            self.inner.commands.insert(cmd.to_string(), c.clone());
-        })
+        for cmd in c.commands().iter() {
+            self.inner
+                .commands
+                .write()
+                .await
+                .insert(cmd.to_string(), c.clone());
+        }
     }
 
     pub fn get_ctx(&self) -> &C {
@@ -87,20 +98,21 @@ impl<C: 'static> Hackshell<C> {
 
         match line {
             Event::Line(line) => {
-                let lexer = shlex::Shlex::new(&line);
-                let cmd: Vec<String> = lexer.collect();
+                let cmd = shlex::Shlex::new(&line).collect::<Vec<String>>();
 
                 if cmd.is_empty() {
                     return Ok(());
                 }
 
-                if let Some(c) = self.inner.commands.get(&cmd[0]) {
-                    c.run(&cmd, &self.inner.ctx)
-                        .await
-                        .to_estring()?;
-                } else {
-                    eprintln!("Command not found");
-                }
+                self.inner
+                    .commands
+                    .read()
+                    .await
+                    .get(&cmd[0])
+                    .ok_or("Command not found")?
+                    .run(self, &cmd, &self.inner.ctx)
+                    .await
+                    .to_estring()?;
             }
             Event::CTRLC => {}
             Event::EOF => {
