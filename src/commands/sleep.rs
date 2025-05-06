@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tokio::time::sleep;
 
-use crate::{Command, Hackshell};
+use crate::Command;
 
 pub struct Sleep {}
 
@@ -16,7 +16,7 @@ impl<C> Command<C> for Sleep {
         "Sleeps for a specific amount of time. Syntax: sleep <seconds>"
     }
 
-    async fn run(&self, _s: &Hackshell<C>, cmd: &[String], _ctx: &C) -> Result<(), String> {
+    async fn run(&self, cmd: &[String], _ctx: &C) -> Result<(), String> {
         if cmd.len() == 2 {
             let duration = cmd[1].parse::<u64>().map_err(|e| e.to_string())?;
             sleep(Duration::from_secs(duration)).await;

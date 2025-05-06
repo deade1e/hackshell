@@ -1,4 +1,4 @@
-use crate::{Command, Hackshell};
+use crate::Command;
 
 pub struct Help {}
 
@@ -12,7 +12,7 @@ impl<C> Command<C> for Help {
         "Displays this message"
     } 
 
-    async fn run(&self, s: &Hackshell<C>, _: &[String], _: &C) -> Result<(), String> {
+    async fn run(&self, _: &[String], _: &C) -> Result<(), String> {
         Ok(())
     }
 }

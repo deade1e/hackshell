@@ -1,11 +1,17 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
-
 use readline::{Event, Readline};
-use tokio::io::{self, stdin, AsyncRead, Stdin};
+use std::{collections::HashMap, path::Path, sync::Arc};
+use taskpool::TaskPool;
+use tokio::{
+    io::{Stdin, stdin},
+    task::JoinHandle,
+};
 
 mod commands;
+mod error;
+mod taskpool;
 
 use commands::{exit::Exit, sleep::Sleep};
+use error::MapErrToString;
 
 // struct Task {
 //     name: String,
@@ -14,31 +20,20 @@ use commands::{exit::Exit, sleep::Sleep};
 //     terminate: watch::Sender<()>,
 // }
 
-// pub enum Event {
-//     Line(String),
-//     CTRLC,
-//     EOF, // CTRL + d
-//     TAB,
-//     SUB, // CTRL + z
-// }
-
-pub trait InputProvider {
-    async fn read_line(&self) -> io::Result<Event>;
-}
-
 #[async_trait::async_trait]
 pub trait Command<C>: Send + Sync + 'static {
     fn commands(&self) -> &'static [&'static str];
-    
+
     fn help(&self) -> &'static str;
 
-    async fn run(&self, s: &Hackshell<C>, cmd: &[String], ctx: &C) -> Result<(), String>;
+    async fn run(&self, cmd: &[String], ctx: &C) -> Result<(), String>;
 }
 
 struct InnerHackshell<C> {
     ctx: C,
     rl: Readline<Stdin>,
     commands: HashMap<String, Arc<dyn Command<C>>>,
+    pool: TaskPool,
     // tasks: RwLock<Vec<Task>>,
 }
 
@@ -52,7 +47,8 @@ impl<C> Hackshell<C> {
             inner: InnerHackshell {
                 ctx,
                 rl: Readline::new(stdin(), prompt, history_file).await,
-                commands: Default::default(), // tasks: Default::default()
+                commands: Default::default(),
+                pool: Default::default(),
             },
         };
 
@@ -69,27 +65,47 @@ impl<C> Hackshell<C> {
             self.inner.commands.insert(cmd.to_string(), c.clone());
         })
     }
+
+    pub fn get_ctx(&self) -> &C {
+        &self.inner.ctx
+    }
+
+    pub async fn spawn(&self, name: &str, fut: impl Future<Output = ()> + Send + 'static) {
+        self.inner.pool.spawn(name, fut).await;
+    }
+
+    pub async fn kill(&self, name: &str) -> Result<(), String> {
+        self.inner.pool.kill(name).await
+    }
 }
 
 impl<C: 'static> Hackshell<C> {
     pub async fn run(&self) -> Result<(), String> {
-        let line = self.inner.rl.run().await.map_err(|e| e.to_string())?;
+        Readline::<Stdin>::enable_raw_mode().to_estring()?;
+        let line = self.inner.rl.run().await.to_estring()?;
+        Readline::<Stdin>::disable_raw_mode().to_estring()?;
 
         match line {
             Event::Line(line) => {
                 let lexer = shlex::Shlex::new(&line);
                 let cmd: Vec<String> = lexer.collect();
 
+                if cmd.is_empty() {
+                    return Ok(());
+                }
+
                 if let Some(c) = self.inner.commands.get(&cmd[0]) {
-                    c.run(&self, &cmd, &self.inner.ctx)
+                    c.run(&cmd, &self.inner.ctx)
                         .await
-                        .map_err(|e| e.to_string())?;
+                        .to_estring()?;
                 } else {
                     eprintln!("Command not found");
                 }
             }
             Event::CTRLC => {}
-            Event::EOF => {}
+            Event::EOF => {
+                return Err("EOF".to_string());
+            }
             Event::TAB => {}
             _ => {}
         }
