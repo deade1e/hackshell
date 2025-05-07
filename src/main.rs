@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use hackshell::{Command, Hackshell};
+use hackshell::{Command, Hackshell, error::MapErrToString};
 use tokio::sync::RwLock;
 
 struct InnerContext {
@@ -59,6 +59,7 @@ async fn main() -> Result<(), String> {
     }
 
     loop {
-        ctx.inner.s.read().await.as_ref().unwrap().run().await?;
+        // ctx.inner.s.read().await.as_ref().unwrap().run().await?;
+        ctx.inner.s.read().await.as_ref().unwrap().readline().await.to_estring()?;
     }
 }

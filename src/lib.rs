@@ -1,17 +1,22 @@
+use crossterm::{
+    event::{self, EventStream},
+    terminal,
+};
+use futures::StreamExt;
 use readline::{Event, Readline};
-use std::{collections::HashMap, path::Path, sync::Arc};
-use taskpool::TaskPool;
+use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 use tokio::{
-    io::{Stdin, stdin},
+    io::{self, Stdin, stdin},
     sync::RwLock,
 };
 
 mod commands;
-mod error;
+pub mod error;
 mod taskpool;
 
 use commands::{exit::Exit, sleep::Sleep};
 use error::MapErrToString;
+use taskpool::TaskPool;
 
 // struct Task {
 //     name: String,
@@ -91,6 +96,34 @@ impl<C> Hackshell<C> {
 }
 
 impl<C: 'static> Hackshell<C> {
+    pub async fn readline(&self) -> Result<(), io::Error> {
+        terminal::enable_raw_mode()?;
+
+        let mut reader = EventStream::new();
+        let event = reader
+            .next()
+            .await
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No event"))??;
+
+        if let event::Event::Key(key) = event {
+            println!("KeyEvent::{:?}\r", key);
+            match key.code {
+                event::KeyCode::Up => {}
+                event::KeyCode::Down => {}
+                event::KeyCode::Left => {}
+                event::KeyCode::Right => {}
+                event::KeyCode::Delete => {}
+                event::KeyCode::Backspace => {}
+                event::KeyCode::Char('q') => std::process::exit(0),
+                _ => {}
+            }
+        }
+
+        terminal::disable_raw_mode()?;
+
+        Ok(())
+    }
+
     pub async fn run(&self) -> Result<(), String> {
         Readline::<Stdin>::enable_raw_mode().to_estring()?;
         let line = self.inner.rl.run().await.to_estring()?;
