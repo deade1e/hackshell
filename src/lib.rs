@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 use tokio::{
-    io::{self, Stdin, stdin},
+    io::{self},
     sync::{Mutex, RwLock},
 };
 
@@ -27,7 +27,7 @@ struct InnerHackshell<C> {
     ctx: C,
     commands: RwLock<HashMap<String, Arc<dyn Command<C>>>>,
     prompt: String,
-    rl: Mutex<Readline<Stdin>>,
+    rl: Mutex<Readline>,
     pool: TaskPool,
 }
 
@@ -50,7 +50,7 @@ impl<C> Hackshell<C> {
                 ctx,
                 commands: Default::default(),
                 prompt: prompt.to_string(),
-                rl: Mutex::new(Readline::new(stdin(), history_file).await?),
+                rl: Mutex::new(Readline::new(history_file).await?),
                 pool: Default::default(),
             }),
         };
@@ -115,13 +115,13 @@ impl<C: 'static> Hackshell<C> {
                     .await
                     .to_estring()?;
             }
-            Event::CTRLC => {
+            Event::Ctrlc => {
                 return Err("CTRLC".to_string());
             }
-            Event::EOF => {
+            Event::Eof => {
                 return Err("EOF".to_string());
             }
-            Event::TAB => {}
+            Event::Tab => {}
             _ => {}
         }
 

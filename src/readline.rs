@@ -1,13 +1,12 @@
 use std::path::Path;
 
 use crossterm::{
-    event::{self, EventStream},
-    terminal,
+    cursor, event::{self, EventStream}, execute, terminal
 };
 use futures::StreamExt;
 use tokio::{
     fs::OpenOptions,
-    io::{self, AsyncRead, AsyncReadExt, AsyncWriteExt, stderr},
+    io::{self, AsyncReadExt, AsyncWriteExt, stderr},
 };
 
 #[derive(Default)]
@@ -18,23 +17,21 @@ pub struct Context {
     ci_pos: usize,
 }
 
-pub struct Readline<R> {
+pub struct Readline {
     ctx: Context,
-    reader: R,
     history_file: Option<tokio::fs::File>,
 }
 
 pub enum Event {
     Line(String),
-    CTRLC,
-    EOF,
-    TAB,
+    Ctrlc,
+    Eof,
+    Tab,
 }
 
-impl<R: AsyncRead + Unpin> Readline<R> {
-    pub async fn new(reader: R, history_file: Option<&Path>) -> io::Result<Self> {
+impl Readline {
+    pub async fn new(history_file: Option<&Path>) -> io::Result<Self> {
         let mut rl = Self {
-            reader,
             ctx: Default::default(),
             history_file: match history_file {
                 Some(path) => Some(
@@ -70,7 +67,6 @@ impl<R: AsyncRead + Unpin> Readline<R> {
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No event"))??;
 
             if let event::Event::Key(key) = event {
-                
                 if key.kind != event::KeyEventKind::Press {
                     continue;
                 }
@@ -84,7 +80,7 @@ impl<R: AsyncRead + Unpin> Readline<R> {
                         state: _,
                     } => {
                         terminal::disable_raw_mode()?;
-                        return Ok(Event::CTRLC);
+                        return Ok(Event::Ctrlc);
                     }
                     event::KeyEvent {
                         code: event::KeyCode::Char('d'),
@@ -93,7 +89,7 @@ impl<R: AsyncRead + Unpin> Readline<R> {
                         state: _,
                     } => {
                         terminal::disable_raw_mode()?;
-                        return Ok(Event::EOF);
+                        return Ok(Event::Eof);
                     }
                     _ => {}
                 }
@@ -122,8 +118,8 @@ impl<R: AsyncRead + Unpin> Readline<R> {
                     }
                     event::KeyCode::Tab => {
                         terminal::disable_raw_mode()?;
-                        return Ok(Event::TAB);
-                    },
+                        return Ok(Event::Tab);
+                    }
                     event::KeyCode::Enter => {
                         terminal::disable_raw_mode()?;
                         return Ok(Event::Line(self.on_enter().await?));
@@ -323,20 +319,16 @@ impl<R: AsyncRead + Unpin> Readline<R> {
             .write_all(format!("\r{}{}", prompt, self.ctx.ci).as_bytes())
             .await?;
         stderr.flush().await?;
-        Self::move_cursor_col(prompt.len() + self.ctx.ci_pos + 1).await?;
+        Self::move_cursor_col(prompt.len() as u16 + self.ctx.ci_pos as u16).await?;
 
         Ok(())
     }
 
     async fn clear_current_line() -> std::io::Result<()> {
-        Self::write_flush("\x1B[2K\r".to_string()).await
+        execute!(std::io::stderr(), terminal::Clear(terminal::ClearType::CurrentLine)) // Ugly
     }
 
-    async fn _move_cursor(row: usize, col: usize) -> std::io::Result<()> {
-        Self::write_flush(format!("\x1B[{};{}H", row, col)).await
-    }
-
-    async fn move_cursor_col(col: usize) -> std::io::Result<()> {
-        Self::write_flush(format!("\x1B[{}G", col)).await
+    async fn move_cursor_col(col: u16) -> std::io::Result<()> {
+        execute!(std::io::stderr(), cursor::MoveToColumn(col))
     }
 }
