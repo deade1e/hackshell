@@ -1,29 +1,18 @@
-use crossterm::{
-    event::{self, EventStream},
-    terminal,
-};
-use futures::StreamExt;
-use readline::{Event, Readline};
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::Path, sync::Arc};
 use tokio::{
     io::{self, Stdin, stdin},
-    sync::RwLock,
+    sync::{Mutex, RwLock},
 };
 
 mod commands;
 pub mod error;
+mod readline;
 mod taskpool;
 
+use crate::readline::{Event, Readline};
 use commands::{exit::Exit, sleep::Sleep};
 use error::MapErrToString;
 use taskpool::TaskPool;
-
-// struct Task {
-//     name: String,
-//     started: chrono::DateTime<chrono::Utc>,
-//     alive: bool,
-//     terminate: watch::Sender<()>,
-// }
 
 #[async_trait::async_trait]
 pub trait Command<C>: Send + Sync + 'static {
@@ -36,8 +25,9 @@ pub trait Command<C>: Send + Sync + 'static {
 
 struct InnerHackshell<C> {
     ctx: C,
-    rl: Readline<Stdin>,
     commands: RwLock<HashMap<String, Arc<dyn Command<C>>>>,
+    prompt: String,
+    rl: Mutex<Readline<Stdin>>,
     pool: TaskPool,
 }
 
@@ -54,12 +44,13 @@ impl<C> Clone for Hackshell<C> {
 }
 
 impl<C> Hackshell<C> {
-    pub async fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> Self {
+    pub async fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
         let mut s = Self {
             inner: Arc::new(InnerHackshell {
                 ctx,
-                rl: Readline::new(stdin(), prompt, history_file).await,
                 commands: Default::default(),
+                prompt: prompt.to_string(),
+                rl: Mutex::new(Readline::new(stdin(), history_file).await?),
                 pool: Default::default(),
             }),
         };
@@ -67,7 +58,7 @@ impl<C> Hackshell<C> {
         s.add_command(Sleep {}).await;
         s.add_command(Exit {}).await;
 
-        s
+        Ok(s)
     }
 
     pub async fn add_command(&mut self, command: impl Command<C> + 'static) {
@@ -96,40 +87,17 @@ impl<C> Hackshell<C> {
 }
 
 impl<C: 'static> Hackshell<C> {
-    pub async fn readline(&self) -> Result<(), io::Error> {
-        terminal::enable_raw_mode()?;
-
-        let mut reader = EventStream::new();
-        let event = reader
-            .next()
-            .await
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No event"))??;
-
-        if let event::Event::Key(key) = event {
-            println!("KeyEvent::{:?}\r", key);
-            match key.code {
-                event::KeyCode::Up => {}
-                event::KeyCode::Down => {}
-                event::KeyCode::Left => {}
-                event::KeyCode::Right => {}
-                event::KeyCode::Delete => {}
-                event::KeyCode::Backspace => {}
-                event::KeyCode::Char('q') => std::process::exit(0),
-                _ => {}
-            }
-        }
-
-        terminal::disable_raw_mode()?;
-
-        Ok(())
-    }
-
     pub async fn run(&self) -> Result<(), String> {
-        Readline::<Stdin>::enable_raw_mode().to_estring()?;
-        let line = self.inner.rl.run().await.to_estring()?;
-        Readline::<Stdin>::disable_raw_mode().to_estring()?;
+        let event = self
+            .inner
+            .rl
+            .lock()
+            .await
+            .readline(&self.inner.prompt)
+            .await
+            .to_estring()?;
 
-        match line {
+        match event {
             Event::Line(line) => {
                 let cmd = shlex::Shlex::new(&line).collect::<Vec<String>>();
 

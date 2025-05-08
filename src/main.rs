@@ -49,7 +49,7 @@ async fn main() -> Result<(), String> {
         }),
     };
 
-    let mut s = Hackshell::new(ctx.clone(), "> ", None).await;
+    let mut s = Hackshell::new(ctx.clone(), "> ", None).await.to_estring()?;
 
     s.add_command(MyCommand {}).await;
 
@@ -60,6 +60,6 @@ async fn main() -> Result<(), String> {
 
     loop {
         // ctx.inner.s.read().await.as_ref().unwrap().run().await?;
-        ctx.inner.s.read().await.as_ref().unwrap().readline().await.to_estring()?;
+        ctx.inner.s.read().await.as_ref().unwrap().run().await.to_estring()?;
     }
 }
