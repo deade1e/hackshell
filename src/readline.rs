@@ -70,6 +70,34 @@ impl<R: AsyncRead + Unpin> Readline<R> {
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No event"))??;
 
             if let event::Event::Key(key) = event {
+                
+                if key.kind != event::KeyEventKind::Press {
+                    continue;
+                }
+
+                // Checking if it's CTRL+C or CTRL+D
+                match key {
+                    event::KeyEvent {
+                        code: event::KeyCode::Char('c'),
+                        modifiers: event::KeyModifiers::CONTROL,
+                        kind: _,
+                        state: _,
+                    } => {
+                        terminal::disable_raw_mode()?;
+                        return Ok(Event::CTRLC);
+                    }
+                    event::KeyEvent {
+                        code: event::KeyCode::Char('d'),
+                        modifiers: event::KeyModifiers::CONTROL,
+                        kind: _,
+                        state: _,
+                    } => {
+                        terminal::disable_raw_mode()?;
+                        return Ok(Event::EOF);
+                    }
+                    _ => {}
+                }
+
                 match key.code {
                     event::KeyCode::Up => {
                         self.on_up_arrow(prompt).await?;
@@ -89,13 +117,13 @@ impl<R: AsyncRead + Unpin> Readline<R> {
                     event::KeyCode::Backspace => {
                         self.on_backspace(prompt).await?;
                     }
-                    event::KeyCode::Char('q') => {
-                        terminal::disable_raw_mode()?;
-                        std::process::exit(0);
-                    }
                     event::KeyCode::Char(c) => {
                         self.insert_ci(c, prompt).await?;
                     }
+                    event::KeyCode::Tab => {
+                        terminal::disable_raw_mode()?;
+                        return Ok(Event::TAB);
+                    },
                     event::KeyCode::Enter => {
                         terminal::disable_raw_mode()?;
                         return Ok(Event::Line(self.on_enter().await?));

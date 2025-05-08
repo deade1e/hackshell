@@ -115,7 +115,9 @@ impl<C: 'static> Hackshell<C> {
                     .await
                     .to_estring()?;
             }
-            Event::CTRLC => {}
+            Event::CTRLC => {
+                return Err("CTRLC".to_string());
+            }
             Event::EOF => {
                 return Err("EOF".to_string());
             }
