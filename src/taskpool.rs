@@ -33,21 +33,30 @@ impl Clone for TaskPool {
     }
 }
 
+impl Task {
+    pub fn kill(&self) -> Result<(), String> {
+        self.terminate.send(()).to_estring()
+    }
+}
+
 impl TaskPool {
     pub async fn spawn(&self, name: &str, fut: impl Future<Output = ()> + Send + 'static) {
         let name = name.to_string();
-        let handle = tokio::spawn(fut);
+        let task = tokio::spawn(fut);
         let (tx, mut rx) = watch::channel(());
         let self_ref = self.clone();
+
+        let _ = self.kill(&name).await; // There could or could not be the task with the same name.
+        // In the case it's there, we kill it and insert the new one.
 
         self.inner.tasks.write().await.insert(
             name.clone(),
             Task {
                 check_handle: tokio::spawn(async move {
-                    let abrt = handle.abort_handle();
+                    let abrt = task.abort_handle();
 
                     tokio::select! {
-                        _ = handle => {},
+                        _ = task => {},
                         _ = rx.changed() => {abrt.abort();}
                     }
 
@@ -59,20 +68,11 @@ impl TaskPool {
     }
 
     pub async fn kill(&self, name: &str) -> Result<(), String> {
-        self.inner
-            .tasks
-            .read()
-            .await
-            .get(name)
-            .ok_or("Task not found")?
-            .terminate
-            .send(())
-            .to_estring()?;
+        let mut tasks = self.inner.tasks.write().await;
 
-        self.inner
-            .tasks
-            .write()
-            .await
+        tasks.get(name).ok_or("Task not found")?.kill()?;
+
+        tasks
             .remove(name)
             .ok_or("Failed to remove task from the pool")?;
 
