@@ -49,7 +49,7 @@ async fn main() -> Result<(), String> {
         }),
     };
 
-    let mut s = Hackshell::new(ctx.clone(), "hackshell> ", None).await.to_estring()?;
+    let s = Hackshell::new(ctx.clone(), "hackshell> ", None).await.to_estring()?;
 
     s.add_command(MyCommand {}).await;
 
