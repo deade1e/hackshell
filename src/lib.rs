@@ -45,7 +45,7 @@ impl<C> Clone for Hackshell<C> {
 
 impl<C> Hackshell<C> {
     pub async fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
-        let mut s = Self {
+        let s = Self {
             inner: Arc::new(InnerHackshell {
                 ctx,
                 commands: Default::default(),
@@ -55,13 +55,12 @@ impl<C> Hackshell<C> {
             }),
         };
 
-        s.add_command(Sleep {}).await;
-        s.add_command(Exit {}).await;
+        s.add_command(Sleep {}).await.add_command(Exit {}).await;
 
         Ok(s)
     }
 
-    pub async fn add_command(&mut self, command: impl Command<C> + 'static) {
+    pub async fn add_command(&self, command: impl Command<C> + 'static) -> Self {
         let c = Arc::new(command);
 
         for cmd in c.commands().iter() {
@@ -71,6 +70,8 @@ impl<C> Hackshell<C> {
                 .await
                 .insert(cmd.to_string(), c.clone());
         }
+
+        self.clone()
     }
 
     pub fn get_ctx(&self) -> &C {
@@ -122,7 +123,6 @@ impl<C: 'static> Hackshell<C> {
                 return Err("EOF".to_string());
             }
             Event::Tab => {}
-            _ => {}
         }
 
         Ok(())
