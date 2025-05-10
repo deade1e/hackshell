@@ -10,7 +10,7 @@ mod readline;
 mod taskpool;
 
 use crate::readline::{Event, Readline};
-use commands::{exit::Exit, sleep::Sleep, task::Task};
+use commands::{exit::Exit, help::Help, sleep::Sleep, task::Task};
 use error::MapErrToString;
 use taskpool::{TaskMetadata, TaskPool};
 
@@ -55,7 +55,9 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
             }),
         };
 
-        s.add_command(Sleep {})
+        s.add_command(Help {})
+            .await
+            .add_command(Sleep {})
             .await
             .add_command(Exit {})
             .await
@@ -93,6 +95,16 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
 
     pub async fn get_tasks(&self) -> Vec<TaskMetadata> {
         self.inner.pool.get_all().await
+    }
+
+    pub async fn get_commands(&self) -> Vec<Arc<dyn Command<C>>> {
+        self.inner
+            .commands
+            .read()
+            .await
+            .iter()
+            .map(|c| c.1.clone())
+            .collect()
     }
 
     pub async fn run(&self) -> Result<(), String> {
