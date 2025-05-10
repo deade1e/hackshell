@@ -12,7 +12,7 @@ impl<C: Send + Sync + 'static> Command<C> for Env {
         "Prints all environment"
     }
 
-    async fn run(&self, s: &Hackshell<C>, cmd: &[String], _ctx: &C) -> Result<(), String> {
+    async fn run(&self, s: &Hackshell<C>, _: &[String], _ctx: &C) -> Result<(), String> {
         for v in s.env().await {
             println!("{}={}", v.0, v.1);
         }
