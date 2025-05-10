@@ -10,9 +10,9 @@ mod readline;
 mod taskpool;
 
 use crate::readline::{Event, Readline};
-use commands::{exit::Exit, sleep::Sleep};
+use commands::{exit::Exit, sleep::Sleep, task::Task};
 use error::MapErrToString;
-use taskpool::TaskPool;
+use taskpool::{TaskMetadata, TaskPool};
 
 #[async_trait::async_trait]
 pub trait Command<C>: Send + Sync + 'static {
@@ -43,7 +43,7 @@ impl<C> Clone for Hackshell<C> {
     }
 }
 
-impl<C> Hackshell<C> {
+impl<C: Send + Sync + 'static> Hackshell<C> {
     pub async fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
         let s = Self {
             inner: Arc::new(InnerHackshell {
@@ -55,7 +55,12 @@ impl<C> Hackshell<C> {
             }),
         };
 
-        s.add_command(Sleep {}).await.add_command(Exit {}).await;
+        s.add_command(Sleep {})
+            .await
+            .add_command(Exit {})
+            .await
+            .add_command(Task {})
+            .await;
 
         Ok(s)
     }
@@ -85,9 +90,11 @@ impl<C> Hackshell<C> {
     pub async fn kill(&self, name: &str) -> Result<(), String> {
         self.inner.pool.kill(name).await
     }
-}
 
-impl<C: 'static> Hackshell<C> {
+    pub async fn get_tasks(&self) -> Vec<TaskMetadata> {
+        self.inner.pool.get_all().await
+    }
+
     pub async fn run(&self) -> Result<(), String> {
         let event = self
             .inner
@@ -106,15 +113,16 @@ impl<C: 'static> Hackshell<C> {
                     return Ok(());
                 }
 
-                self.inner
-                    .commands
-                    .read()
-                    .await
-                    .get(&cmd[0])
-                    .ok_or("Command not found")?
-                    .run(self, &cmd, &self.inner.ctx)
-                    .await
-                    .to_estring()?;
+                match self.inner.commands.read().await.get(&cmd[0]) {
+                    Some(c) => {
+                        if let Err(e) = c.run(self, &cmd, &self.inner.ctx).await {
+                            eprintln!("{}", e);
+                        }
+                    }
+                    None => {
+                        eprintln!("Command not found");
+                    }
+                }
             }
             Event::Ctrlc => {
                 return Err("CTRLC".to_string());

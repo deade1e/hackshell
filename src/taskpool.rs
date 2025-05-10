@@ -10,7 +10,14 @@ use tokio::{
 
 use crate::error::MapErrToString;
 
+#[derive(Clone)]
+pub struct TaskMetadata {
+    pub name: String,
+    pub started: chrono::DateTime<chrono::Utc>,
+}
+
 pub struct Task {
+    meta: TaskMetadata,
     check_handle: JoinHandle<()>,
     terminate: Sender<()>,
 }
@@ -52,6 +59,10 @@ impl TaskPool {
         self.inner.tasks.write().await.insert(
             name.clone(),
             Task {
+                meta: TaskMetadata {
+                    name: name.clone(),
+                    started: chrono::Utc::now(),
+                },
                 check_handle: tokio::spawn(async move {
                     let abrt = task.abort_handle();
 
@@ -77,5 +88,15 @@ impl TaskPool {
             .ok_or("Failed to remove task from the pool")?;
 
         Ok(())
+    }
+
+    pub async fn get_all(&self) -> Vec<TaskMetadata> {
+        self.inner
+            .tasks
+            .read()
+            .await
+            .iter()
+            .map(|item| item.1.meta.clone())
+            .collect::<Vec<TaskMetadata>>()
     }
 }
