@@ -30,7 +30,7 @@ impl<C: Send + Sync + 'static> Command<C> for Task {
         }
 
         let tasks = s.get_tasks().await;
-        
+
         if tasks.is_empty() {
             eprintln!("No running tasks");
             return Ok(());
@@ -51,7 +51,7 @@ impl<C: Send + Sync + 'static> Command<C> for Task {
         }
 
         eprint!("\n");
-        
+
         Ok(())
     }
 }

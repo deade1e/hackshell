@@ -10,7 +10,9 @@ mod readline;
 mod taskpool;
 
 use crate::readline::{Event, Readline};
-use commands::{exit::Exit, help::Help, sleep::Sleep, task::Task};
+use commands::{
+    env::Env, exit::Exit, get::Get, help::Help, set::Set, sleep::Sleep, task::Task, unset::Unset,
+};
 use error::MapErrToString;
 use taskpool::{TaskMetadata, TaskPool};
 
@@ -26,9 +28,10 @@ pub trait Command<C>: Send + Sync + 'static {
 struct InnerHackshell<C> {
     ctx: C,
     commands: RwLock<HashMap<String, Arc<dyn Command<C>>>>,
+    env: RwLock<HashMap<String, String>>,
+    pool: TaskPool,
     prompt: String,
     rl: Mutex<Readline>,
-    pool: TaskPool,
 }
 
 pub struct Hackshell<C> {
@@ -49,13 +52,22 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
             inner: Arc::new(InnerHackshell {
                 ctx,
                 commands: Default::default(),
+                env: Default::default(),
+                pool: Default::default(),
                 prompt: prompt.to_string(),
                 rl: Mutex::new(Readline::new(history_file).await?),
-                pool: Default::default(),
             }),
         };
 
-        s.add_command(Help {})
+        s.add_command(Env {})
+            .await
+            .add_command(Get {})
+            .await
+            .add_command(Set {})
+            .await
+            .add_command(Unset {})
+            .await
+            .add_command(Help {})
             .await
             .add_command(Sleep {})
             .await
@@ -105,6 +117,26 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
             .iter()
             .map(|c| c.1.clone())
             .collect()
+    }
+
+    pub async fn env(&self) -> HashMap<String, String> {
+        self.inner.env.read().await.clone()
+    }
+
+    pub async fn get_var(&self, n: &str) -> Option<String> {
+        self.inner.env.read().await.get(&n.to_lowercase()).cloned()
+    }
+
+    pub async fn set_var(&self, n: &str, v: &str) {
+        self.inner
+            .env
+            .write()
+            .await
+            .insert(n.to_lowercase(), v.to_string());
+    }
+
+    pub async fn unset_var(&self, n: &str) {
+        self.inner.env.write().await.remove(n);
     }
 
     pub async fn run(&self) -> Result<(), String> {
