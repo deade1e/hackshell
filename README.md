@@ -28,6 +28,8 @@ Hackshell comes with several built-in commands:
 
 ## Usage
 
+You can find complete examples in the `src/examples` directory. The following are quick examples.
+
 ### Basic Example
 
 ```rust
