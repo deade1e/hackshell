@@ -149,6 +149,10 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
         match self.inner.commands.read().await.get(&cmd[0]) {
             Some(c) => {
                 if let Err(e) = c.run(self, &cmd, &self.inner.ctx).await {
+                    if e == "exit" {
+                        return Err(e);
+                    }
+
                     eprintln!("{}", e);
                 }
             }

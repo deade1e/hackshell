@@ -13,6 +13,6 @@ impl<C: Send + Sync + 'static> Command<C> for Exit {
     }
 
     async fn run(&self, _: &Hackshell<C>, _cmd: &[String], _ctx: &C) -> Result<(), String> {
-        std::process::exit(0);
+        Err("exit".to_string())
     }
 }
