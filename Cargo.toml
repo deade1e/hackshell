@@ -16,20 +16,20 @@ clap = { version =  "4.5.37", features = ["derive"] }
 
 [[example]]
 name = "basic"
-path = "src/examples/basic.rs"
+path = "examples/basic.rs"
 
 [[example]]
 name = "helloworld"
-path = "src/examples/helloworld.rs"
+path = "examples/helloworld.rs"
 
 [[example]]
 name = "runtask"
-path = "src/examples/runtask.rs"
+path = "examples/runtask.rs"
 
 [[example]]
 name = "printsecret"
-path = "src/examples/printsecret.rs"
+path = "examples/printsecret.rs"
 
 [[example]]
 name = "counter"
-path = "src/examples/counter.rs"
+path = "examples/counter.rs"
