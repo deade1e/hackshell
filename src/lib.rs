@@ -139,6 +139,27 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
         self.inner.env.write().await.remove(n);
     }
 
+    pub async fn feed_line(&self, line: &str) -> Result<(), String> {
+        let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
+
+        if cmd.is_empty() {
+            return Ok(());
+        }
+
+        match self.inner.commands.read().await.get(&cmd[0]) {
+            Some(c) => {
+                if let Err(e) = c.run(self, &cmd, &self.inner.ctx).await {
+                    eprintln!("{}", e);
+                }
+            }
+            None => {
+                eprintln!("Command not found");
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn run(&self) -> Result<(), String> {
         let event = self
             .inner
@@ -150,24 +171,7 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
             .to_estring()?;
 
         match event {
-            Event::Line(line) => {
-                let cmd = shlex::Shlex::new(&line).collect::<Vec<String>>();
-
-                if cmd.is_empty() {
-                    return Ok(());
-                }
-
-                match self.inner.commands.read().await.get(&cmd[0]) {
-                    Some(c) => {
-                        if let Err(e) = c.run(self, &cmd, &self.inner.ctx).await {
-                            eprintln!("{}", e);
-                        }
-                    }
-                    None => {
-                        eprintln!("Command not found");
-                    }
-                }
-            }
+            Event::Line(line) => {return self.feed_line(&line).await;}
             Event::Ctrlc => {
                 return Err("CTRLC".to_string());
             }
