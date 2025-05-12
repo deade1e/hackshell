@@ -100,8 +100,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 struct AppState {
-    config: HashMap<String, String>,
-    client: DatabaseClient,
+    config: RwLock<HashMap<String, String>>,
+    client: Mutex<DatabaseClient>,
 }
 
 // Your custom commands can now access the AppState
@@ -115,8 +115,8 @@ impl Command<AppState> for ConfigCommand {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_state = AppState {
-        config: HashMap::new(),
-        client: DatabaseClient::connect("localhost:5432").await?,
+        config: RwLock::new(HashMap::new()),
+        client: Mutex::new(DatabaseClient::connect("localhost:5432").await?),
     };
     
     let shell = Hackshell::new(app_state, "myapp> ", Some(Path::new("history.txt"))).await?;
@@ -132,7 +132,7 @@ Hackshell allows you to spawn and manage background tasks:
 // Spawn a background task
 shell.spawn("my-task", async {
     for i in 0..10 {
-        println!("Background task: {}", i);
+        println!("Background task: {}\r", i);
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 }).await;
