@@ -7,7 +7,6 @@ edition = "2024"
 async-trait = "0.1.88"
 chrono = "0.4.40"
 crossterm = { version = "0.29.0", features = ["event-stream"] }
-readline = { git = "https://github.com/pfrankw/readline.git", version = "0.1.7" }
 shlex = "1.3.0"
 tokio = { version = "1.44.2", features = ["full"] }
 futures = "0.3"
