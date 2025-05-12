@@ -2,6 +2,7 @@
 name = "hackshell"
 version = "0.1.0"
 description = "Lightweight, customizable shell framework"
+repository = "https://github.com/pfrankw/hackshell"
 license = "MIT"
 edition = "2024"
 
