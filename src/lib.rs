@@ -105,6 +105,10 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
         self.inner.pool.kill(name).await
     }
 
+    pub async fn wait(&self, name: &str) {
+        self.inner.pool.wait(name).await;
+    }
+
     pub async fn get_tasks(&self) -> Vec<TaskMetadata> {
         self.inner.pool.get_all().await
     }
@@ -139,16 +143,14 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
         self.inner.env.write().await.remove(n);
     }
 
-    pub async fn feed_line(&self, line: &str) -> Result<(), String> {
-        let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
-
+    pub async fn feed_slice(&self, cmd: &[String]) -> Result<(), String> {
         if cmd.is_empty() {
             return Ok(());
         }
 
         match self.inner.commands.read().await.get(&cmd[0]) {
             Some(c) => {
-                if let Err(e) = c.run(self, &cmd, &self.inner.ctx).await {
+                if let Err(e) = c.run(self, cmd, &self.inner.ctx).await {
                     if e == "exit" {
                         return Err(e);
                     }
@@ -162,6 +164,11 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
         }
 
         Ok(())
+    }
+
+    pub async fn feed_line(&self, line: &str) -> Result<(), String> {
+        let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
+        self.feed_slice(&cmd).await
     }
 
     pub async fn run(&self) -> Result<(), String> {

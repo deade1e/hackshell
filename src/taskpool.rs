@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use tokio::{
     sync::{
-        RwLock,
+        Mutex, RwLock,
         watch::{self, Sender},
     },
     task::JoinHandle,
@@ -18,13 +18,13 @@ pub struct TaskMetadata {
 
 pub struct Task {
     meta: TaskMetadata,
-    _check_handle: JoinHandle<()>,
+    check_handle: Mutex<Option<JoinHandle<()>>>,
     terminate: Sender<()>,
 }
 
 #[derive(Default)]
 struct InnerTaskPool {
-    tasks: RwLock<HashMap<String, Task>>,
+    tasks: RwLock<HashMap<String, Arc<Task>>>,
 }
 
 #[derive(Default)]
@@ -44,6 +44,12 @@ impl Task {
     pub fn kill(&self) -> Result<(), String> {
         self.terminate.send(()).to_estring()
     }
+
+    pub async fn wait(&self) {
+        if let Some(handle) = self.check_handle.lock().await.take() {
+            let _ = handle.await;
+        }
+    }
 }
 
 impl TaskPool {
@@ -58,12 +64,12 @@ impl TaskPool {
 
         self.inner.tasks.write().await.insert(
             name.clone(),
-            Task {
+            Arc::new(Task {
                 meta: TaskMetadata {
                     name: name.clone(),
                     started: chrono::Utc::now(),
                 },
-                _check_handle: tokio::spawn(async move {
+                check_handle: Mutex::new(Some(tokio::spawn(async move {
                     let abrt = task.abort_handle();
 
                     tokio::select! {
@@ -72,9 +78,9 @@ impl TaskPool {
                     }
 
                     let _ = self_ref.kill(&name).await;
-                }),
+                }))),
                 terminate: tx,
-            },
+            }),
         );
     }
 
@@ -88,6 +94,15 @@ impl TaskPool {
             .ok_or("Failed to remove task from the pool")?;
 
         Ok(())
+    }
+
+    pub async fn wait(&self, name: &str) {
+        let tasks = self.inner.tasks.read().await;
+        if let Some(task) = tasks.get(name).cloned() {
+            std::mem::drop(tasks);
+            task.wait().await;
+            // Killing and removal are automatic
+        }
     }
 
     pub async fn get_all(&self) -> Vec<TaskMetadata> {

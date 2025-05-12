@@ -7,6 +7,10 @@ struct Cmd {
     /// Terminate the task
     #[clap(short = 't', long)]
     pub terminate: Option<String>,
+
+    /// Wait the task. This command blocks the shell until the task ends.
+    #[clap(short = 'w', long)]
+    pub wait: Option<String>
 }
 
 pub struct Task {}
@@ -26,6 +30,11 @@ impl<C: Send + Sync + 'static> Command<C> for Task {
 
         if let Some(name) = args.terminate {
             s.kill(&name).await?;
+            return Ok(());
+        }
+
+        if let Some(name) = args.wait {
+            s.wait(&name).await;
             return Ok(());
         }
 

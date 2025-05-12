@@ -155,7 +155,7 @@ Add Hackshell to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hackshell = "0.1.0"
+hackshell = "0.1.2"
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 ```
