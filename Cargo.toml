@@ -15,6 +15,10 @@ futures-timer = "3.0"
 clap = { version =  "4.5.37", features = ["derive"] }
 
 [[example]]
+name = "basic"
+path = "src/examples/basic.rs"
+
+[[example]]
 name = "helloworld"
 path = "src/examples/helloworld.rs"
 
