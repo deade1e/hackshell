@@ -1,6 +1,8 @@
 [package]
 name = "hackshell"
 version = "0.1.0"
+description = "Lightweight, customizable shell framework"
+license = "MIT"
 edition = "2024"
 
 [dependencies]
