@@ -18,7 +18,7 @@ pub struct TaskMetadata {
 
 pub struct Task {
     meta: TaskMetadata,
-    check_handle: JoinHandle<()>,
+    _check_handle: JoinHandle<()>,
     terminate: Sender<()>,
 }
 
@@ -63,7 +63,7 @@ impl TaskPool {
                     name: name.clone(),
                     started: chrono::Utc::now(),
                 },
-                check_handle: tokio::spawn(async move {
+                _check_handle: tokio::spawn(async move {
                     let abrt = task.abort_handle();
 
                     tokio::select! {
