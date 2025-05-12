@@ -171,7 +171,9 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
             .to_estring()?;
 
         match event {
-            Event::Line(line) => {return self.feed_line(&line).await;}
+            Event::Line(line) => {
+                return self.feed_line(&line).await;
+            }
             Event::Ctrlc => {
                 return Err("CTRLC".to_string());
             }
