@@ -1,11 +1,9 @@
 use hackshell::{error::MapErrToString, Command, Hackshell};
 
-struct MyContext {}
-
 struct HelloWorld {}
 
 #[async_trait::async_trait]
-impl Command<MyContext> for HelloWorld {
+impl Command<()> for HelloWorld {
     fn commands(&self) -> &'static [&'static str] {
         &["helloworld"]
     }
@@ -16,9 +14,9 @@ impl Command<MyContext> for HelloWorld {
 
     async fn run(
         &self,
-        _s: &Hackshell<MyContext>,
+        _s: &Hackshell<()>,
         _cmd: &[String],
-        _ctx: &MyContext,
+        _ctx: &(),
     ) -> Result<(), String> {
         println!("Hello, World!");
         Ok(())
@@ -27,9 +25,8 @@ impl Command<MyContext> for HelloWorld {
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
-    let ctx = MyContext {};
 
-    let s = Hackshell::new(ctx, "hackshell> ", None)
+    let s = Hackshell::new((), "hackshell> ", None)
         .await
         .to_estring()?;
 
