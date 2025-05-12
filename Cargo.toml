@@ -25,3 +25,7 @@ path = "src/examples/runtask.rs"
 [[example]]
 name = "printsecret"
 path = "src/examples/printsecret.rs"
+
+[[example]]
+name = "counter"
+path = "src/examples/counter.rs"
