@@ -1,14 +1,12 @@
 use hackshell::{Command, Hackshell, error::MapErrToString};
 use tokio::sync::RwLock;
 
-struct MyContext {}
-
 struct Counter {
     counter: RwLock<u64>,
 }
 
 #[async_trait::async_trait]
-impl Command<MyContext> for Counter {
+impl Command<()> for Counter {
     fn commands(&self) -> &'static [&'static str] {
         &["counter"]
     }
@@ -17,12 +15,7 @@ impl Command<MyContext> for Counter {
         "This is a non-default command installed by the Hackshell consumer. It simply increments an internal counter"
     }
 
-    async fn run(
-        &self,
-        _s: &Hackshell<MyContext>,
-        _cmd: &[String],
-        _ctx: &MyContext,
-    ) -> Result<(), String> {
+    async fn run(&self, _s: &Hackshell<()>, _cmd: &[String], _ctx: &()) -> Result<(), String> {
         let mut counter = self.counter.write().await;
 
         *counter += 1;
@@ -35,11 +28,7 @@ impl Command<MyContext> for Counter {
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
-    let ctx = MyContext {};
-
-    let s = Hackshell::new(ctx, "hackshell> ", None)
-        .await
-        .to_estring()?;
+    let s = Hackshell::new((), "hackshell> ", None).await.to_estring()?;
 
     s.add_command(Counter {
         counter: RwLock::new(0),

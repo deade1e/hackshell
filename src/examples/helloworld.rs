@@ -1,4 +1,4 @@
-use hackshell::{error::MapErrToString, Command, Hackshell};
+use hackshell::{Command, Hackshell, error::MapErrToString};
 
 struct HelloWorld {}
 
@@ -12,12 +12,7 @@ impl Command<()> for HelloWorld {
         "This is a non-default command installed by the Hackshell consumer. It simply prints Hello, World."
     }
 
-    async fn run(
-        &self,
-        _s: &Hackshell<()>,
-        _cmd: &[String],
-        _ctx: &(),
-    ) -> Result<(), String> {
+    async fn run(&self, _s: &Hackshell<()>, _cmd: &[String], _ctx: &()) -> Result<(), String> {
         println!("Hello, World!");
         Ok(())
     }
@@ -25,10 +20,7 @@ impl Command<()> for HelloWorld {
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
-
-    let s = Hackshell::new((), "hackshell> ", None)
-        .await
-        .to_estring()?;
+    let s = Hackshell::new((), "hackshell> ", None).await.to_estring()?;
 
     s.add_command(HelloWorld {}).await;
 

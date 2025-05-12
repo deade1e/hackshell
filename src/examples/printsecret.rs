@@ -1,8 +1,7 @@
-
-use hackshell::{error::MapErrToString, Command, Hackshell};
+use hackshell::{Command, Hackshell, error::MapErrToString};
 
 struct MyContext {
-    secret: String
+    secret: String,
 }
 
 struct PrintSecret {}
@@ -31,7 +30,7 @@ impl Command<MyContext> for PrintSecret {
 #[tokio::main]
 async fn main() -> Result<(), String> {
     let ctx = MyContext {
-        secret: "It rains red in some parts of the world".to_string()
+        secret: "It rains red in some parts of the world".to_string(),
     };
 
     let s = Hackshell::new(ctx, "hackshell> ", None)
