@@ -1,14 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use tokio::{
-    sync::{
-        Mutex, RwLock,
-        watch::{self, Sender},
-    },
-    task::JoinHandle,
+    sync::{Mutex, RwLock},
+    task::{AbortHandle, JoinHandle},
 };
-
-use crate::error::MapErrToString;
 
 #[derive(Clone)]
 pub struct TaskMetadata {
@@ -18,8 +13,8 @@ pub struct TaskMetadata {
 
 pub struct Task {
     meta: TaskMetadata,
-    check_handle: Mutex<Option<JoinHandle<()>>>,
-    terminate: Sender<()>,
+    wait_handle: Mutex<Option<JoinHandle<()>>>,
+    abort_handle: AbortHandle,
 }
 
 #[derive(Default)]
@@ -42,11 +37,12 @@ impl Clone for TaskPool {
 
 impl Task {
     pub fn kill(&self) -> Result<(), String> {
-        self.terminate.send(()).to_estring()
+        self.abort_handle.abort();
+        Ok(())
     }
 
     pub async fn wait(&self) {
-        if let Some(handle) = self.check_handle.lock().await.take() {
+        if let Some(handle) = self.wait_handle.lock().await.take() {
             let _ = handle.await;
         }
     }
@@ -56,11 +52,11 @@ impl TaskPool {
     pub async fn spawn(&self, name: &str, fut: impl Future<Output = ()> + Send + 'static) {
         let name = name.to_string();
         let task = tokio::spawn(fut);
-        let (tx, mut rx) = watch::channel(());
         let self_ref = self.clone();
 
-        let _ = self.kill(&name).await; // There could or could not be the task with the same name.
+        // There could or could not be the task with the same name.
         // In the case it's there, we kill it and insert the new one.
+        let _ = self.remove(&name).await;
 
         self.inner.tasks.write().await.insert(
             name.clone(),
@@ -69,27 +65,42 @@ impl TaskPool {
                     name: name.clone(),
                     started: chrono::Utc::now(),
                 },
-                check_handle: Mutex::new(Some(tokio::spawn(async move {
-                    let abrt = task.abort_handle();
-
-                    tokio::select! {
-                        _ = task => {},
-                        _ = rx.changed() => {abrt.abort();}
+                abort_handle: task.abort_handle(),
+                wait_handle: Mutex::new(Some(tokio::spawn(async move {
+                    match task.await {
+                        // Task finished on its own, without being aborted.
+                        // Automatically removing it from the pool.
+                        Ok(_) => {
+                            let _ = self_ref.remove(&name).await;
+                        }
+                        // Task terminated somehow and produced Err, but was not cancelled.
+                        Err(e) if !e.is_cancelled() => {
+                            let _ = self_ref.remove(&name).await;
+                        },
+                        // Task was cancelled, removal will happen shortly
+                        _ => {}
                     }
-
-                    let _ = self_ref.kill(&name).await;
                 }))),
-                terminate: tx,
             }),
         );
     }
 
-    pub async fn kill(&self, name: &str) -> Result<(), String> {
-        let mut tasks = self.inner.tasks.write().await;
+    pub async fn remove(&self, name: &str) -> Result<(), String> {
+        let task = self
+            .inner
+            .tasks
+            .read()
+            .await
+            .get(name)
+            .ok_or("Task not found")?
+            .clone();
 
-        tasks.get(name).ok_or("Task not found")?.kill()?;
+        task.kill()?;
 
-        tasks
+        self.inner
+            .tasks
+            .write()
+            .await
             .remove(name)
             .ok_or("Failed to remove task from the pool")?;
 

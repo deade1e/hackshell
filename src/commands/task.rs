@@ -29,7 +29,7 @@ impl<C: Send + Sync + 'static> Command<C> for Task {
         let args = Cmd::try_parse_from(cmd).to_estring()?;
 
         if let Some(name) = args.terminate {
-            s.kill(&name).await?;
+            s.terminate(&name).await?;
             return Ok(());
         }
 

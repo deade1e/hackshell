@@ -101,8 +101,8 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
         self.inner.pool.spawn(name, fut).await;
     }
 
-    pub async fn kill(&self, name: &str) -> Result<(), String> {
-        self.inner.pool.kill(name).await
+    pub async fn terminate(&self, name: &str) -> Result<(), String> {
+        self.inner.pool.remove(name).await
     }
 
     pub async fn wait(&self, name: &str) {
