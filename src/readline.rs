@@ -39,10 +39,9 @@ impl Readline {
                         .read(true)
                         .write(true)
                         .create(true)
-                        .truncate(true)
+                        .truncate(false)
                         .open(path)
-                        .await
-                        .unwrap(),
+                        .await?
                 ),
                 None => None,
             },
