@@ -11,7 +11,7 @@ pub struct TaskMetadata {
     pub started: chrono::DateTime<chrono::Utc>,
 }
 
-pub struct Task {
+struct Task {
     meta: TaskMetadata,
     wait_handle: Mutex<Option<JoinHandle<()>>>,
     abort_handle: AbortHandle,
