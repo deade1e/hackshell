@@ -15,7 +15,7 @@ struct Cmd {
 
 pub struct Task {}
 
-impl<C: Send + Sync + 'static> Command<C> for Task {
+impl<C: 'static> Command<C> for Task {
     fn commands(&self) -> &'static [&'static str] {
         &["task"]
     }

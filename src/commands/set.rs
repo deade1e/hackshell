@@ -2,7 +2,7 @@ use crate::{Command, Hackshell};
 
 pub struct Set {}
 
-impl<C: Send + Sync + 'static> Command<C> for Set {
+impl<C: 'static> Command<C> for Set {
     fn commands(&self) -> &'static [&'static str] {
         &["set"]
     }

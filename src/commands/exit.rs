@@ -2,7 +2,7 @@ use crate::{Command, Hackshell};
 
 pub struct Exit {}
 
-impl<C: Send + Sync + 'static> Command<C> for Exit {
+impl<C: 'static> Command<C> for Exit {
     fn commands(&self) -> &'static [&'static str] {
         &["exit"]
     }

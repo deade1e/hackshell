@@ -2,7 +2,7 @@ use crate::{Command, Hackshell};
 
 pub struct Env {}
 
-impl<C: Send + Sync + 'static> Command<C> for Env {
+impl<C: 'static> Command<C> for Env {
     fn commands(&self) -> &'static [&'static str] {
         &["env"]
     }

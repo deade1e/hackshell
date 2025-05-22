@@ -14,7 +14,7 @@ use commands::{
 use error::MapErrToString;
 use taskpool::{TaskMetadata, TaskPool};
 
-pub trait Command<C>: Send + Sync + 'static {
+pub trait Command<C>: 'static {
     fn commands(&self) -> &'static [&'static str];
 
     fn help(&self) -> &'static str;
@@ -35,7 +35,7 @@ pub struct Hackshell<C> {
     inner: InnerHackshell<C>,
 }
 
-impl<C: Send + Sync + 'static> Hackshell<C> {
+impl<C: 'static> Hackshell<C> {
     pub fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
         let mut s = Self {
             inner: InnerHackshell {
@@ -60,7 +60,7 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
         Ok(s)
     }
 
-    pub fn add_command(&mut self, command: impl Command<C> + 'static) -> &mut Self {
+    pub fn add_command<D: Command<C> + 'static>(&mut self, command: D) -> &mut Self {
         let c = Rc::new(command);
 
         for cmd in c.commands().iter() {

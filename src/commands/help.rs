@@ -2,7 +2,7 @@ use crate::{Command, Hackshell};
 
 pub struct Help {}
 
-impl<C: Send + Sync + 'static> Command<C> for Help {
+impl<C: 'static> Command<C> for Help {
     fn commands(&self) -> &'static [&'static str] {
         &["help"]
     }

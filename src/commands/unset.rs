@@ -1,9 +1,8 @@
 use crate::{Command, Hackshell};
 
-#[derive(Clone)]
 pub struct Unset {}
 
-impl<C: Send + Sync + 'static> Command<C> for Unset {
+impl<C: 'static> Command<C> for Unset {
     fn commands(&self) -> &'static [&'static str] {
         &["unset"]
     }
