@@ -1,4 +1,8 @@
-use std::{collections::HashMap, path::Path, sync::{atomic::AtomicBool, Arc}};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{Arc, atomic::AtomicBool},
+};
 use tokio::{
     io::{self},
     sync::{Mutex, RwLock},
@@ -55,7 +59,7 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
                 env: Default::default(),
                 pool: Default::default(),
                 prompt: prompt.to_string(),
-                rl: Mutex::new(Readline::new(history_file).await?),
+                rl: Mutex::new(Readline::new(history_file)?),
             }),
         };
 
@@ -97,7 +101,11 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
         &self.inner.ctx
     }
 
-    pub async fn spawn_blocking<F: Fn(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
+    pub async fn spawn_blocking<F: Fn(Arc<AtomicBool>) + Send + 'static>(
+        &self,
+        name: &str,
+        func: F,
+    ) {
         self.inner.pool.spawn_blocking(name, func).await;
     }
 
@@ -176,14 +184,19 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
     }
 
     pub async fn run(&self) -> Result<(), String> {
-        let event = self
-            .inner
-            .rl
-            .lock()
-            .await
-            .readline(&self.inner.prompt)
-            .await
-            .to_estring()?;
+        let self_ref = self.clone();
+        let event = tokio::task::spawn_blocking(async move || {
+            self_ref
+                .inner
+                .rl
+                .lock()
+                .await
+                .readline(&self_ref.inner.prompt)
+                .to_estring()
+        })
+        .await
+        .to_estring()?
+        .await?;
 
         match event {
             Event::Line(line) => {
