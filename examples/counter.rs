@@ -12,9 +12,8 @@ impl Command<u64> for Counter {
     }
 
     fn run(&self, s: &mut Hackshell<u64>, _cmd: &[String]) -> Result<(), String> {
-        
-        let num = s.get_mut_ctx();
-        *num += 1;
+        let num = s.get_mut_ctx().unwrap();
+        *(num) += 1;
 
         println!("The counter is now: {}\r", num);
 
@@ -23,8 +22,9 @@ impl Command<u64> for Counter {
 }
 
 fn main() -> Result<(), String> {
-    let mut s = Hackshell::new(0u64, "hackshell> ", None).to_estring()?;
+    let mut s = Hackshell::new("hackshell> ", None).to_estring()?;
 
+    s.set_ctx(0u64);
     s.add_command(Counter {});
 
     loop {

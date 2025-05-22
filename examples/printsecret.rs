@@ -16,7 +16,7 @@ impl Command<MyContext> for PrintSecret {
     }
 
     fn run(&self, s: &mut Hackshell<MyContext>, _cmd: &[String]) -> Result<(), String> {
-        println!("{}", s.get_ctx().secret);
+        println!("{}", s.get_ctx().unwrap().secret);
         Ok(())
     }
 }
@@ -26,7 +26,9 @@ fn main() -> Result<(), String> {
         secret: "It rains red in some parts of the world".to_string(),
     };
 
-    let mut s = Hackshell::new(ctx, "hackshell> ", None).to_estring()?;
+    let mut s = Hackshell::new("hackshell> ", None).to_estring()?;
+
+    s.set_ctx(ctx);
 
     s.add_command(PrintSecret {});
 

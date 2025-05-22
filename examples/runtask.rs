@@ -37,7 +37,7 @@ impl Command<()> for RunTask {
 }
 
 fn main() -> Result<(), String> {
-    let mut s = Hackshell::new((), "hackshell> ", None).to_estring()?;
+    let mut s = Hackshell::new("hackshell> ", None).to_estring()?;
 
     s.add_command(RunTask {});
 

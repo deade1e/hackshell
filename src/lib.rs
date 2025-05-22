@@ -1,5 +1,9 @@
 use std::{
-    collections::HashMap, io, path::Path, rc::Rc, sync::{atomic::AtomicBool, Arc}
+    collections::HashMap,
+    io,
+    path::Path,
+    rc::Rc,
+    sync::{Arc, atomic::AtomicBool},
 };
 
 mod commands;
@@ -23,7 +27,7 @@ pub trait Command<C>: 'static {
 }
 
 struct InnerHackshell<C> {
-    ctx: C,
+    ctx: Option<C>,
     commands: HashMap<String, Rc<dyn Command<C>>>,
     env: HashMap<String, String>,
     pool: TaskPool,
@@ -36,10 +40,10 @@ pub struct Hackshell<C> {
 }
 
 impl<C: 'static> Hackshell<C> {
-    pub fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
+    pub fn new(prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
         let mut s = Self {
             inner: InnerHackshell {
-                ctx,
+                ctx: None,
                 commands: Default::default(),
                 env: Default::default(),
                 pool: Default::default(),
@@ -70,12 +74,16 @@ impl<C: 'static> Hackshell<C> {
         self
     }
 
-    pub fn get_ctx(&self) -> &C {
-        &self.inner.ctx
+    pub fn set_ctx(&mut self, ctx: C) {
+        self.inner.ctx = Some(ctx);
     }
 
-    pub fn get_mut_ctx(&mut self) -> &mut C {
-        &mut self.inner.ctx
+    pub fn get_ctx(&self) -> Option<&C> {
+        self.inner.ctx.as_ref()
+    }
+
+    pub fn get_mut_ctx(&mut self) -> Option<&mut C> {
+        self.inner.ctx.as_mut()
     }
 
     pub fn spawn<F: Fn(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
