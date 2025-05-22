@@ -2,7 +2,6 @@ use crate::{Command, Hackshell};
 
 pub struct Env {}
 
-#[async_trait::async_trait]
 impl<C: Send + Sync + 'static> Command<C> for Env {
     fn commands(&self) -> &'static [&'static str] {
         &["env"]
@@ -12,8 +11,8 @@ impl<C: Send + Sync + 'static> Command<C> for Env {
         "Prints all environment"
     }
 
-    async fn run(&self, s: &Hackshell<C>, _: &[String], _ctx: &C) -> Result<(), String> {
-        for v in s.env().await {
+    fn run(&self, s: &mut Hackshell<C>, _: &[String]) -> Result<(), String> {
+        for v in s.env() {
             println!("{}={}", v.0, v.1);
         }
 

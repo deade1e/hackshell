@@ -1,12 +1,8 @@
 use hackshell::{Command, Hackshell, error::MapErrToString};
-use tokio::sync::RwLock;
 
-struct Counter {
-    counter: RwLock<u64>,
-}
+struct Counter {}
 
-#[async_trait::async_trait]
-impl Command<()> for Counter {
+impl Command<u64> for Counter {
     fn commands(&self) -> &'static [&'static str] {
         &["counter"]
     }
@@ -15,27 +11,23 @@ impl Command<()> for Counter {
         "This is a non-default command installed by the Hackshell consumer. It simply increments an internal counter"
     }
 
-    async fn run(&self, _s: &Hackshell<()>, _cmd: &[String], _ctx: &()) -> Result<(), String> {
-        let mut counter = self.counter.write().await;
+    fn run(&self, s: &mut Hackshell<u64>, _cmd: &[String]) -> Result<(), String> {
+        
+        let num = s.get_mut_ctx();
+        *num += 1;
 
-        *counter += 1;
-
-        println!("The counter is now: {}\r", counter);
+        println!("The counter is now: {}\r", num);
 
         Ok(())
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), String> {
-    let s = Hackshell::new((), "hackshell> ", None).await.to_estring()?;
+fn main() -> Result<(), String> {
+    let mut s = Hackshell::new(0u64, "hackshell> ", None).to_estring()?;
 
-    s.add_command(Counter {
-        counter: RwLock::new(0),
-    })
-    .await;
+    s.add_command(Counter {});
 
     loop {
-        s.run().await.to_estring()?;
+        s.run().to_estring()?;
     }
 }

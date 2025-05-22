@@ -2,7 +2,6 @@ use crate::{Command, Hackshell};
 
 pub struct Set {}
 
-#[async_trait::async_trait]
 impl<C: Send + Sync + 'static> Command<C> for Set {
     fn commands(&self) -> &'static [&'static str] {
         &["set"]
@@ -12,12 +11,12 @@ impl<C: Send + Sync + 'static> Command<C> for Set {
         "Sets an environment variable. Syntax: set <name> <value>"
     }
 
-    async fn run(&self, s: &Hackshell<C>, cmd: &[String], _ctx: &C) -> Result<(), String> {
+    fn run(&self, s: &mut Hackshell<C>, cmd: &[String]) -> Result<(), String> {
         if cmd.len() != 3 {
             return Err("Syntax: set <name> <value>".to_string());
         }
 
-        s.set_var(&cmd[1], &cmd[2]).await;
+        s.set_var(&cmd[1], &cmd[2]);
 
         Ok(())
     }

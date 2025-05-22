@@ -6,7 +6,6 @@ Hackshell is a lightweight, customizable shell framework built in Rust. It provi
 
 ## Features
 
-- **Async Command Processing**: Built on Tokio for efficient async operations
 - **Task Management**: Background task spawning, monitoring, and killing
 - **Environment Variables**: Built-in environment variable storage and manipulation
 - **Rich Command Set**: Comes with essential built-in commands like `help`, `set`, `get`, `env`, etc.
@@ -36,14 +35,13 @@ You can find complete examples in the `examples` directory. The following are qu
 use std::path::Path;
 use hackshell::Hackshell;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new shell with a custom context (in this case just ())
-    let shell = Hackshell::new((), "hackshell> ", Some(Path::new("history.txt"))).await?;
+    let mut shell = Hackshell::new((), "hackshell> ", Some(Path::new("history.txt")))?;
     
     // Enter the shell loop
     loop {
-        match shell.run().await {
+        match shell.run() {
             Ok(_) => {}
             Err(e) => {
                 if e == "EOF" || e == "CTRLC" || e == "exit" {
@@ -68,7 +66,6 @@ use hackshell::{Hackshell, Command};
 
 struct MyCommand;
 
-#[async_trait::async_trait]
 impl Command<()> for MyCommand {
     fn commands(&self) -> &'static [&'static str] {
         &["mycmd"]
@@ -78,18 +75,17 @@ impl Command<()> for MyCommand {
         "mycmd - My custom command"
     }
 
-    async fn run(&self, shell: &Hackshell<()>, args: &[String], _ctx: &()) -> Result<(), String> {
+    fn run(&self, shell: &mut Hackshell<()>, args: &[String]) -> Result<(), String> {
         println!("My custom command was called with args: {:?}", &args[1..]);
         Ok(())
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let shell = Hackshell::new((), "hackshell> ", Some(Path::new("history.txt"))).await?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut shell = Hackshell::new((), "hackshell> ", Some(Path::new("history.txt")))?;
     
     // Add your custom command
-    shell.add_command(MyCommand {}).await;
+    shell.add_command(MyCommand {});
     
     // Run shell loop
     // ...
@@ -109,19 +105,17 @@ struct AppState {
 // Your custom commands can now access the AppState
 struct ConfigCommand;
 
-#[async_trait::async_trait]
 impl Command<AppState> for ConfigCommand {
     // Implementation omitted for brevity
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_state = AppState {
         config: RwLock::new(HashMap::new()),
-        client: Mutex::new(DatabaseClient::connect("localhost:5432").await?),
+        client: Mutex::new(DatabaseClient::connect("localhost:5432")?),
     };
     
-    let shell = Hackshell::new(app_state, "myapp> ", Some(Path::new("history.txt"))).await?;
+    let mut shell = Hackshell::new(app_state, "myapp> ", Some(Path::new("history.txt")))?;
     // ...
 }
 ```
@@ -132,21 +126,21 @@ Hackshell allows you to spawn and manage background tasks:
 
 ```rust
 // Spawn a background task
-shell.spawn("my-task", async {
+shell.spawn("my-task", move |run| {
     for i in 0..10 {
         println!("Background task: {}\r", i);
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        sleep(Duration::from_secs(1));
     }
-}).await;
+});
 
 // List active tasks
-let tasks = shell.get_tasks().await;
+let tasks = shell.get_tasks();
 for task in tasks {
     println!("Task: {}, running for {}s", task.name, task.duration.as_secs());
 }
 
 // Kill a task
-shell.kill("my-task").await?;
+shell.kill("my-task")?;
 ```
 
 ## Installation
@@ -155,9 +149,7 @@ Add Hackshell to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hackshell = "0.1.2"
-tokio = { version = "1", features = ["full"] }
-async-trait = "0.1"
+hackshell = "0.1.6"
 ```
 
 ## License

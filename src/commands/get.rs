@@ -2,7 +2,6 @@ use crate::{Command, Hackshell};
 
 pub struct Get {}
 
-#[async_trait::async_trait]
 impl<C: Send + Sync + 'static> Command<C> for Get {
     fn commands(&self) -> &'static [&'static str] {
         &["get"]
@@ -12,12 +11,12 @@ impl<C: Send + Sync + 'static> Command<C> for Get {
         "Prints an environment variable"
     }
 
-    async fn run(&self, s: &Hackshell<C>, cmd: &[String], _ctx: &C) -> Result<(), String> {
+    fn run(&self, s: &mut Hackshell<C>, cmd: &[String]) -> Result<(), String> {
         if cmd.len() != 2 {
             return Err("Syntax: get <name>".to_string());
         }
 
-        println!("{}", s.get_var(&cmd[1]).await.ok_or("Variable not found")?);
+        println!("{}", s.get_var(&cmd[1]).ok_or("Variable not found")?);
 
         Ok(())
     }

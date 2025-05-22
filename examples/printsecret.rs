@@ -6,7 +6,6 @@ struct MyContext {
 
 struct PrintSecret {}
 
-#[async_trait::async_trait]
 impl Command<MyContext> for PrintSecret {
     fn commands(&self) -> &'static [&'static str] {
         &["printsecret"]
@@ -16,30 +15,22 @@ impl Command<MyContext> for PrintSecret {
         "This is a non-default command installed by the Hackshell consumer. It prints a variable inside the passed context."
     }
 
-    async fn run(
-        &self,
-        _s: &Hackshell<MyContext>,
-        _cmd: &[String],
-        ctx: &MyContext,
-    ) -> Result<(), String> {
-        println!("{}", ctx.secret);
+    fn run(&self, s: &mut Hackshell<MyContext>, _cmd: &[String]) -> Result<(), String> {
+        println!("{}", s.get_ctx().secret);
         Ok(())
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), String> {
+fn main() -> Result<(), String> {
     let ctx = MyContext {
         secret: "It rains red in some parts of the world".to_string(),
     };
 
-    let s = Hackshell::new(ctx, "hackshell> ", None)
-        .await
-        .to_estring()?;
+    let mut s = Hackshell::new(ctx, "hackshell> ", None).to_estring()?;
 
-    s.add_command(PrintSecret {}).await;
+    s.add_command(PrintSecret {});
 
     loop {
-        s.run().await.to_estring()?;
+        s.run().to_estring()?;
     }
 }

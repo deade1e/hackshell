@@ -10,12 +10,11 @@ struct Cmd {
 
     /// Wait the task. This command blocks the shell until the task ends.
     #[clap(short = 'w', long)]
-    pub wait: Option<String>
+    pub wait: Option<String>,
 }
 
 pub struct Task {}
 
-#[async_trait::async_trait]
 impl<C: Send + Sync + 'static> Command<C> for Task {
     fn commands(&self) -> &'static [&'static str] {
         &["task"]
@@ -25,20 +24,20 @@ impl<C: Send + Sync + 'static> Command<C> for Task {
         "Lists and manages tasks"
     }
 
-    async fn run(&self, s: &Hackshell<C>, cmd: &[String], _ctx: &C) -> Result<(), String> {
+    fn run(&self, s: &mut Hackshell<C>, cmd: &[String]) -> Result<(), String> {
         let args = Cmd::try_parse_from(cmd).to_estring()?;
 
         if let Some(name) = args.terminate {
-            s.terminate(&name).await?;
+            s.terminate(&name)?;
             return Ok(());
         }
 
         if let Some(name) = args.wait {
-            s.wait(&name).await;
+            s.wait(&name);
             return Ok(());
         }
 
-        let tasks = s.get_tasks().await;
+        let tasks = s.get_tasks();
 
         if tasks.is_empty() {
             eprintln!("No running tasks");
@@ -59,7 +58,7 @@ impl<C: Send + Sync + 'static> Command<C> for Task {
             );
         }
 
-        eprint!("\n");
+        eprintln!();
 
         Ok(())
     }

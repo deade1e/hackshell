@@ -2,7 +2,6 @@ use crate::{Command, Hackshell};
 
 pub struct Exit {}
 
-#[async_trait::async_trait]
 impl<C: Send + Sync + 'static> Command<C> for Exit {
     fn commands(&self) -> &'static [&'static str] {
         &["exit"]
@@ -12,7 +11,7 @@ impl<C: Send + Sync + 'static> Command<C> for Exit {
         "Exits the program"
     }
 
-    async fn run(&self, _: &Hackshell<C>, _cmd: &[String], _ctx: &C) -> Result<(), String> {
+    fn run(&self, _: &mut Hackshell<C>, _cmd: &[String]) -> Result<(), String> {
         Err("exit".to_string())
     }
 }

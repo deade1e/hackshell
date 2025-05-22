@@ -1,11 +1,5 @@
 use std::{
-    collections::HashMap,
-    path::Path,
-    sync::{Arc, atomic::AtomicBool},
-};
-use tokio::{
-    io::{self},
-    sync::{Mutex, RwLock},
+    collections::HashMap, io, path::Path, rc::Rc, sync::{atomic::AtomicBool, Arc}
 };
 
 mod commands;
@@ -20,149 +14,116 @@ use commands::{
 use error::MapErrToString;
 use taskpool::{TaskMetadata, TaskPool};
 
-#[async_trait::async_trait]
 pub trait Command<C>: Send + Sync + 'static {
     fn commands(&self) -> &'static [&'static str];
 
     fn help(&self) -> &'static str;
 
-    async fn run(&self, s: &Hackshell<C>, cmd: &[String], ctx: &C) -> Result<(), String>;
+    fn run(&self, s: &mut Hackshell<C>, cmd: &[String]) -> Result<(), String>;
 }
 
 struct InnerHackshell<C> {
     ctx: C,
-    commands: RwLock<HashMap<String, Arc<dyn Command<C>>>>,
-    env: RwLock<HashMap<String, String>>,
+    commands: HashMap<String, Rc<dyn Command<C>>>,
+    env: HashMap<String, String>,
     pool: TaskPool,
     prompt: String,
-    rl: Mutex<Readline>,
+    rl: Readline,
 }
 
 pub struct Hackshell<C> {
-    inner: Arc<InnerHackshell<C>>,
-}
-
-impl<C> Clone for Hackshell<C> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
-    }
+    inner: InnerHackshell<C>,
 }
 
 impl<C: Send + Sync + 'static> Hackshell<C> {
-    pub async fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
-        let s = Self {
-            inner: Arc::new(InnerHackshell {
+    pub fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
+        let mut s = Self {
+            inner: InnerHackshell {
                 ctx,
                 commands: Default::default(),
                 env: Default::default(),
                 pool: Default::default(),
                 prompt: prompt.to_string(),
-                rl: Mutex::new(Readline::new(history_file)?),
-            }),
+                rl: Readline::new(history_file)?,
+            },
         };
 
         s.add_command(Env {})
-            .await
             .add_command(Get {})
-            .await
             .add_command(Set {})
-            .await
             .add_command(Unset {})
-            .await
             .add_command(Help {})
-            .await
             .add_command(Sleep {})
-            .await
             .add_command(Exit {})
-            .await
-            .add_command(Task {})
-            .await;
+            .add_command(Task {});
 
         Ok(s)
     }
 
-    pub async fn add_command(&self, command: impl Command<C> + 'static) -> Self {
-        let c = Arc::new(command);
+    pub fn add_command(&mut self, command: impl Command<C> + 'static) -> &mut Self {
+        let c = Rc::new(command);
 
         for cmd in c.commands().iter() {
-            self.inner
-                .commands
-                .write()
-                .await
-                .insert(cmd.to_string(), c.clone());
+            self.inner.commands.insert(cmd.to_string(), c.clone());
         }
 
-        self.clone()
+        self
     }
 
     pub fn get_ctx(&self) -> &C {
         &self.inner.ctx
     }
 
-    pub async fn spawn_blocking<F: Fn(Arc<AtomicBool>) + Send + 'static>(
-        &self,
-        name: &str,
-        func: F,
-    ) {
-        self.inner.pool.spawn_blocking(name, func).await;
+    pub fn get_mut_ctx(&mut self) -> &mut C {
+        &mut self.inner.ctx
     }
 
-    pub async fn spawn(&self, name: &str, fut: impl Future<Output = ()> + Send + 'static) {
-        self.inner.pool.spawn(name, fut).await;
+    pub fn spawn<F: Fn(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
+        self.inner.pool.spawn(name, func);
     }
 
-    pub async fn terminate(&self, name: &str) -> Result<(), String> {
-        self.inner.pool.remove(name).await
+    pub fn terminate(&self, name: &str) -> Result<(), String> {
+        self.inner.pool.remove(name)
     }
 
-    pub async fn wait(&self, name: &str) {
-        self.inner.pool.wait(name).await;
+    pub fn wait(&self, name: &str) {
+        self.inner.pool.wait(name);
     }
 
-    pub async fn get_tasks(&self) -> Vec<TaskMetadata> {
-        self.inner.pool.get_all().await
+    pub fn get_tasks(&self) -> Vec<TaskMetadata> {
+        self.inner.pool.get_all()
     }
 
-    pub async fn get_commands(&self) -> Vec<Arc<dyn Command<C>>> {
-        self.inner
-            .commands
-            .read()
-            .await
-            .iter()
-            .map(|c| c.1.clone())
-            .collect()
+    pub fn get_commands(&self) -> Vec<Rc<dyn Command<C>>> {
+        self.inner.commands.iter().map(|c| c.1.clone()).collect()
     }
 
-    pub async fn env(&self) -> HashMap<String, String> {
-        self.inner.env.read().await.clone()
+    pub fn env(&self) -> HashMap<String, String> {
+        self.inner.env.clone()
     }
 
-    pub async fn get_var(&self, n: &str) -> Option<String> {
-        self.inner.env.read().await.get(&n.to_lowercase()).cloned()
+    pub fn get_var(&self, n: &str) -> Option<String> {
+        self.inner.env.get(&n.to_lowercase()).cloned()
     }
 
-    pub async fn set_var(&self, n: &str, v: &str) {
-        self.inner
-            .env
-            .write()
-            .await
-            .insert(n.to_lowercase(), v.to_string());
+    pub fn set_var(&mut self, n: &str, v: &str) {
+        self.inner.env.insert(n.to_lowercase(), v.to_string());
     }
 
-    pub async fn unset_var(&self, n: &str) {
-        self.inner.env.write().await.remove(n);
+    pub fn unset_var(&mut self, n: &str) {
+        self.inner.env.remove(n);
     }
 
-    pub async fn feed_slice(&self, cmd: &[String]) -> Result<(), String> {
+    pub fn feed_slice(&mut self, cmd: &[String]) -> Result<(), String> {
         if cmd.is_empty() {
             return Ok(());
         }
 
-        match self.inner.commands.read().await.get(&cmd[0]) {
+        let command = self.inner.commands.get(&cmd[0]).cloned();
+
+        match command {
             Some(c) => {
-                if let Err(e) = c.run(self, cmd, &self.inner.ctx).await {
+                if let Err(e) = c.run(self, cmd) {
                     if e == "exit" {
                         return Err(e);
                     }
@@ -178,29 +139,17 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
         Ok(())
     }
 
-    pub async fn feed_line(&self, line: &str) -> Result<(), String> {
+    pub fn feed_line(&mut self, line: &str) -> Result<(), String> {
         let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
-        self.feed_slice(&cmd).await
+        self.feed_slice(&cmd)
     }
 
-    pub async fn run(&self) -> Result<(), String> {
-        let self_ref = self.clone();
-        let event = tokio::task::spawn_blocking(async move || {
-            self_ref
-                .inner
-                .rl
-                .lock()
-                .await
-                .readline(&self_ref.inner.prompt)
-                .to_estring()
-        })
-        .await
-        .to_estring()?
-        .await?;
+    pub fn run(&mut self) -> Result<(), String> {
+        let event = self.inner.rl.readline(&self.inner.prompt).to_estring()?;
 
         match event {
             Event::Line(line) => {
-                return self.feed_line(&line).await;
+                return self.feed_line(&line);
             }
             Event::Ctrlc => {
                 return Err("CTRLC".to_string());

@@ -1,14 +1,10 @@
 use std::{
     collections::HashMap,
     sync::{
-        Arc,
+        Arc, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
     },
-};
-
-use tokio::{
-    sync::{Mutex, RwLock},
-    task::{AbortHandle, JoinHandle},
+    thread::JoinHandle,
 };
 
 #[derive(Clone)]
@@ -25,7 +21,6 @@ struct Task {
     /// yelding points.
     run: Mutex<Option<Arc<AtomicBool>>>,
     wait_handle: Mutex<Option<JoinHandle<()>>>,
-    abort_handle: AbortHandle,
 }
 
 #[derive(Default)]
@@ -47,113 +42,90 @@ impl Clone for TaskPool {
 }
 
 impl Task {
-    pub async fn kill(&self) -> Result<(), String> {
-        self.abort_handle.abort();
-        if let Some(run) = self.run.lock().await.take() {
+    pub fn kill(&self) -> Result<(), String> {
+        if let Some(run) = self.run.lock().unwrap().take() {
             // Signaling to a sync thread, that has no yelding points, to stop.
             run.store(false, Ordering::Relaxed);
         }
         Ok(())
     }
 
-    pub async fn wait(&self) {
-        if let Some(handle) = self.wait_handle.lock().await.take() {
-            let _ = handle.await;
+    pub fn wait(&self) {
+        if let Some(handle) = self.wait_handle.lock().unwrap().take() {
+            let _ = handle.join();
         }
     }
 }
 
 impl TaskPool {
-    pub async fn spawn_blocking<F: Fn(Arc<AtomicBool>) + Send + 'static>(
-        &self,
-        name: &str,
-        func: F,
-    ) {
+    pub fn spawn<F: Fn(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
         let run = Arc::new(AtomicBool::new(true));
-        let run_clone = run.clone();
-        let task = tokio::task::spawn_blocking(move || {
-            func(run_clone);
-        });
-        self.insert(name, task, Some(run)).await;
-    }
-
-    pub async fn spawn(&self, name: &str, fut: impl Future<Output = ()> + Send + 'static) {
-        let task = tokio::spawn(fut);
-        self.insert(name, task, None).await;
-    }
-
-    async fn insert(&self, name: &str, task: JoinHandle<()>, run: Option<Arc<AtomicBool>>) {
-        let name = name.to_string();
+        let run_ref = run.clone();
         let self_ref = self.clone();
+        let name = name.to_string();
+        let name_ref = name.clone();
 
         // There could or could not be the task with the same name.
         // In the case it's there, we kill it and insert the new one.
-        let _ = self.remove(&name).await;
+        let _ = self.remove(&name);
 
-        self.inner.tasks.write().await.insert(
+        let task = std::thread::spawn(move || {
+            func(run_ref);
+
+            // Automatic removal once it's finished
+            let _ = self_ref.remove(&name_ref);
+        });
+
+
+        self.inner.tasks.write().unwrap().insert(
             name.clone(),
             Arc::new(Task {
                 meta: TaskMetadata {
                     name: name.clone(),
                     started: chrono::Utc::now(),
                 },
-                run: Mutex::new(run),
-                abort_handle: task.abort_handle(),
-                wait_handle: Mutex::new(Some(tokio::spawn(async move {
-                    match task.await {
-                        // Task finished on its own, without being aborted.
-                        // Automatically removing it from the pool.
-                        Ok(_) => {
-                            let _ = self_ref.remove(&name).await;
-                        }
-                        // Task terminated somehow and produced Err, but was not cancelled.
-                        Err(e) if !e.is_cancelled() => {
-                            let _ = self_ref.remove(&name).await;
-                        }
-                        // Task was cancelled, removal will happen shortly
-                        _ => {}
-                    }
-                }))),
+                run: Mutex::new(Some(run)),
+                wait_handle: Mutex::new(Some(task)),
             }),
         );
     }
 
-    pub async fn remove(&self, name: &str) -> Result<(), String> {
+    pub fn remove(&self, name: &str) -> Result<(), String> {
         let task = self
             .inner
             .tasks
             .read()
-            .await
+            .unwrap()
             .get(name)
             .ok_or("Task not found")?
             .clone();
 
-        task.kill().await?;
+        task.kill()?;
 
         self.inner
             .tasks
             .write()
-            .await
+            .unwrap()
             .remove(name)
             .ok_or("Failed to remove task from the pool")?;
 
         Ok(())
     }
 
-    pub async fn wait(&self, name: &str) {
-        let tasks = self.inner.tasks.read().await;
+    pub fn wait(&self, name: &str) {
+        let tasks = self.inner.tasks.read().unwrap();
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
-            task.wait().await;
+            task.wait();
             // Killing and removal are automatic
         }
     }
 
-    pub async fn get_all(&self) -> Vec<TaskMetadata> {
+    pub fn get_all(&self) -> Vec<TaskMetadata> {
         self.inner
             .tasks
             .read()
-            .await
+            .unwrap()
             .iter()
             .map(|item| item.1.meta.clone())
             .collect::<Vec<TaskMetadata>>()

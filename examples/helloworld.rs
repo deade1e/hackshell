@@ -2,7 +2,6 @@ use hackshell::{Command, Hackshell, error::MapErrToString};
 
 struct HelloWorld {}
 
-#[async_trait::async_trait]
 impl Command<()> for HelloWorld {
     fn commands(&self) -> &'static [&'static str] {
         &["helloworld"]
@@ -12,19 +11,18 @@ impl Command<()> for HelloWorld {
         "This is a non-default command installed by the Hackshell consumer. It simply prints Hello, World."
     }
 
-    async fn run(&self, _s: &Hackshell<()>, _cmd: &[String], _ctx: &()) -> Result<(), String> {
+    fn run(&self, _s: &mut Hackshell<()>, _cmd: &[String]) -> Result<(), String> {
         println!("Hello, World!");
         Ok(())
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), String> {
-    let s = Hackshell::new((), "hackshell> ", None).await.to_estring()?;
+fn main() -> Result<(), String> {
+    let mut s = Hackshell::new((), "hackshell> ", None).to_estring()?;
 
-    s.add_command(HelloWorld {}).await;
+    s.add_command(HelloWorld {});
 
     loop {
-        s.run().await.to_estring()?;
+        s.run().to_estring()?;
     }
 }
