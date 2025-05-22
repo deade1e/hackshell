@@ -1,4 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use tokio::{
     sync::{Mutex, RwLock},
@@ -13,6 +19,11 @@ pub struct TaskMetadata {
 
 struct Task {
     meta: TaskMetadata,
+
+    /// This is used to signal a sync thread to stop gracefully.
+    /// In Rust, due to memory safety, it's not possible to stop normal threads, as they have no
+    /// yelding points.
+    run: Mutex<Option<Arc<AtomicBool>>>,
     wait_handle: Mutex<Option<JoinHandle<()>>>,
     abort_handle: AbortHandle,
 }
@@ -36,8 +47,12 @@ impl Clone for TaskPool {
 }
 
 impl Task {
-    pub fn kill(&self) -> Result<(), String> {
+    pub async fn kill(&self) -> Result<(), String> {
         self.abort_handle.abort();
+        if let Some(run) = self.run.lock().await.take() {
+            // Signaling to a sync thread, that has no yelding points, to stop.
+            run.store(false, Ordering::Relaxed);
+        }
         Ok(())
     }
 
@@ -49,9 +64,26 @@ impl Task {
 }
 
 impl TaskPool {
+    pub async fn spawn_blocking<F: Fn(Arc<AtomicBool>) + Send + 'static>(
+        &self,
+        name: &str,
+        func: F,
+    ) {
+        let run = Arc::new(AtomicBool::new(true));
+        let run_clone = run.clone();
+        let task = tokio::task::spawn_blocking(move || {
+            func(run_clone);
+        });
+        self.insert(name, task, Some(run)).await;
+    }
+
     pub async fn spawn(&self, name: &str, fut: impl Future<Output = ()> + Send + 'static) {
-        let name = name.to_string();
         let task = tokio::spawn(fut);
+        self.insert(name, task, None).await;
+    }
+
+    async fn insert(&self, name: &str, task: JoinHandle<()>, run: Option<Arc<AtomicBool>>) {
+        let name = name.to_string();
         let self_ref = self.clone();
 
         // There could or could not be the task with the same name.
@@ -65,6 +97,7 @@ impl TaskPool {
                     name: name.clone(),
                     started: chrono::Utc::now(),
                 },
+                run: Mutex::new(run),
                 abort_handle: task.abort_handle(),
                 wait_handle: Mutex::new(Some(tokio::spawn(async move {
                     match task.await {
@@ -76,7 +109,7 @@ impl TaskPool {
                         // Task terminated somehow and produced Err, but was not cancelled.
                         Err(e) if !e.is_cancelled() => {
                             let _ = self_ref.remove(&name).await;
-                        },
+                        }
                         // Task was cancelled, removal will happen shortly
                         _ => {}
                     }
@@ -95,7 +128,7 @@ impl TaskPool {
             .ok_or("Task not found")?
             .clone();
 
-        task.kill()?;
+        task.kill().await?;
 
         self.inner
             .tasks

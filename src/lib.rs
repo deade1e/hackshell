@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::{atomic::AtomicBool, Arc}};
 use tokio::{
     io::{self},
     sync::{Mutex, RwLock},
@@ -95,6 +95,10 @@ impl<C: Send + Sync + 'static> Hackshell<C> {
 
     pub fn get_ctx(&self) -> &C {
         &self.inner.ctx
+    }
+
+    pub async fn spawn_blocking<F: Fn(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
+        self.inner.pool.spawn_blocking(name, func).await;
     }
 
     pub async fn spawn(&self, name: &str, fut: impl Future<Output = ()> + Send + 'static) {
