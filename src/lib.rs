@@ -2,7 +2,6 @@ use std::{
     collections::HashMap,
     io,
     path::Path,
-    rc::Rc,
     sync::{Arc, atomic::AtomicBool},
 };
 
@@ -28,7 +27,7 @@ pub trait Command<C>: 'static {
 
 struct InnerHackshell<C> {
     ctx: Option<C>,
-    commands: HashMap<String, Rc<dyn Command<C>>>,
+    commands: HashMap<String, Arc<dyn Command<C>>>,
     env: HashMap<String, String>,
     pool: TaskPool,
     prompt: String,
@@ -65,7 +64,7 @@ impl<C: 'static> Hackshell<C> {
     }
 
     pub fn add_command<D: Command<C> + 'static>(&mut self, command: D) -> &mut Self {
-        let c = Rc::new(command);
+        let c = Arc::new(command);
 
         for cmd in c.commands().iter() {
             self.inner.commands.insert(cmd.to_string(), c.clone());
@@ -102,7 +101,7 @@ impl<C: 'static> Hackshell<C> {
         self.inner.pool.get_all()
     }
 
-    pub fn get_commands(&self) -> Vec<Rc<dyn Command<C>>> {
+    pub fn get_commands(&self) -> Vec<Arc<dyn Command<C>>> {
         self.inner.commands.iter().map(|c| c.1.clone()).collect()
     }
 
