@@ -17,7 +17,7 @@ use commands::{
 use error::MapErrToString;
 use taskpool::{TaskMetadata, TaskPool};
 
-pub trait Command<C>: 'static {
+pub trait Command<C>: Send + Sync + 'static {
     fn commands(&self) -> &'static [&'static str];
 
     fn help(&self) -> &'static str;
