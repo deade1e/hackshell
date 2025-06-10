@@ -22,7 +22,7 @@ pub trait Command<C>: Send + Sync + 'static {
 
     fn help(&self) -> &'static str;
 
-    fn run(&self, s: &mut Hackshell<C>, cmd: &[String]) -> Result<(), String>;
+    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> Result<(), String>;
 }
 
 struct InnerHackshell<C> {
@@ -69,7 +69,7 @@ impl<C: 'static> Hackshell<C> {
         Ok(s)
     }
 
-    pub fn add_command<D: Command<C> + 'static>(&mut self, command: D) -> &mut Self {
+    pub fn add_command<D: Command<C> + 'static>(&self, command: D) -> &Self {
         let c = Arc::new(command);
 
         for cmd in c.commands().iter() {
@@ -126,7 +126,7 @@ impl<C: 'static> Hackshell<C> {
             .cloned()
     }
 
-    pub fn set_var(&mut self, n: &str, v: &str) {
+    pub fn set_var(&self, n: &str, v: &str) {
         self.inner
             .env
             .write()
@@ -134,11 +134,11 @@ impl<C: 'static> Hackshell<C> {
             .insert(n.to_lowercase(), v.to_string());
     }
 
-    pub fn unset_var(&mut self, n: &str) {
+    pub fn unset_var(&self, n: &str) {
         self.inner.env.write().unwrap().remove(n);
     }
 
-    pub fn feed_slice(&mut self, cmd: &[String]) -> Result<(), String> {
+    pub fn feed_slice(&self, cmd: &[String]) -> Result<(), String> {
         if cmd.is_empty() {
             return Ok(());
         }
@@ -163,12 +163,12 @@ impl<C: 'static> Hackshell<C> {
         Ok(())
     }
 
-    pub fn feed_line(&mut self, line: &str) -> Result<(), String> {
+    pub fn feed_line(&self, line: &str) -> Result<(), String> {
         let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
         self.feed_slice(&cmd)
     }
 
-    pub fn run(&mut self) -> Result<(), String> {
+    pub fn run(&self) -> Result<(), String> {
         let event = self
             .inner
             .rl

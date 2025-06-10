@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Exit {
         "Exits the program"
     }
 
-    fn run(&self, _: &mut Hackshell<C>, _cmd: &[String]) -> Result<(), String> {
+    fn run(&self, _: &Hackshell<C>, _cmd: &[String]) -> Result<(), String> {
         Err("exit".to_string())
     }
 }

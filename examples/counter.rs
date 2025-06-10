@@ -11,7 +11,7 @@ impl Command<u64> for Counter {
         "This is a non-default command installed by the Hackshell consumer. It simply increments an internal counter"
     }
 
-    fn run(&self, s: &mut Hackshell<u64>, _cmd: &[String]) -> Result<(), String> {
+    fn run(&self, s: &Hackshell<u64>, _cmd: &[String]) -> Result<(), String> {
         let mut num = s.get_ctx();
         *(num) += 1;
 

@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Unset {
         "Unsets an environment variable"
     }
 
-    fn run(&self, s: &mut Hackshell<C>, cmd: &[String]) -> Result<(), String> {
+    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> Result<(), String> {
         if cmd.len() != 2 {
             return Err("Syntax: unset <name>".to_string());
         }

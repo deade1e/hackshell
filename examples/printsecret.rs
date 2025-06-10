@@ -15,7 +15,7 @@ impl Command<MyContext> for PrintSecret {
         "This is a non-default command installed by the Hackshell consumer. It prints a variable inside the passed context."
     }
 
-    fn run(&self, s: &mut Hackshell<MyContext>, _cmd: &[String]) -> Result<(), String> {
+    fn run(&self, s: &Hackshell<MyContext>, _cmd: &[String]) -> Result<(), String> {
         println!("{}", s.get_ctx().secret);
         Ok(())
     }

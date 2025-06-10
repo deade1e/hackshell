@@ -11,7 +11,7 @@ impl Command<()> for HelloWorld {
         "This is a non-default command installed by the Hackshell consumer. It simply prints Hello, World."
     }
 
-    fn run(&self, _s: &mut Hackshell<()>, _cmd: &[String]) -> Result<(), String> {
+    fn run(&self, _s: &Hackshell<()>, _cmd: &[String]) -> Result<(), String> {
         println!("Hello, World!");
         Ok(())
     }
