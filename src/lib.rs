@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     io,
     path::Path,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard, RwLock},
 };
 
 mod commands;
@@ -26,29 +26,29 @@ pub trait Command<C>: Send + Sync + 'static {
 }
 
 struct InnerHackshell<C> {
-    ctx: Option<C>,
-    commands: HashMap<String, Arc<dyn Command<C>>>,
-    env: HashMap<String, String>,
+    ctx: Mutex<C>,
+    commands: RwLock<HashMap<String, Arc<dyn Command<C>>>>,
+    env: RwLock<HashMap<String, String>>,
     pool: TaskPool,
-    prompt: String,
-    rl: Readline,
+    prompt: RwLock<String>,
+    rl: Mutex<Readline>,
 }
 
 pub struct Hackshell<C> {
-    inner: InnerHackshell<C>,
+    inner: Arc<InnerHackshell<C>>
 }
 
 impl<C: 'static> Hackshell<C> {
-    pub fn new(prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
+    pub fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
         let mut s = Self {
-            inner: InnerHackshell {
-                ctx: None,
+            inner: Arc::new(InnerHackshell {
+                ctx: Mutex::new(ctx),
                 commands: Default::default(),
                 env: Default::default(),
                 pool: Default::default(),
-                prompt: prompt.to_string(),
-                rl: Readline::new(history_file)?,
-            },
+                prompt: RwLock::new(prompt.to_string()),
+                rl: Mutex::new(Readline::new(history_file)?)
+            })
         };
 
         s.add_command(Env {})
@@ -67,22 +67,14 @@ impl<C: 'static> Hackshell<C> {
         let c = Arc::new(command);
 
         for cmd in c.commands().iter() {
-            self.inner.commands.insert(cmd.to_string(), c.clone());
+            self.inner.commands.write().unwrap().insert(cmd.to_string(), c.clone());
         }
 
         self
     }
 
-    pub fn set_ctx(&mut self, ctx: C) {
-        self.inner.ctx = Some(ctx);
-    }
-
-    pub fn get_ctx(&self) -> Option<&C> {
-        self.inner.ctx.as_ref()
-    }
-
-    pub fn get_mut_ctx(&mut self) -> Option<&mut C> {
-        self.inner.ctx.as_mut()
+    pub fn get_ctx(&self) -> MutexGuard<'_, C> {
+        self.inner.ctx.lock().unwrap()
     }
 
     pub fn spawn<F: Fn(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
@@ -102,23 +94,23 @@ impl<C: 'static> Hackshell<C> {
     }
 
     pub fn get_commands(&self) -> Vec<Arc<dyn Command<C>>> {
-        self.inner.commands.iter().map(|c| c.1.clone()).collect()
+        self.inner.commands.read().unwrap().iter().map(|c| c.1.clone()).collect()
     }
 
     pub fn env(&self) -> HashMap<String, String> {
-        self.inner.env.clone()
+        self.inner.env.read().unwrap().clone()
     }
 
     pub fn get_var(&self, n: &str) -> Option<String> {
-        self.inner.env.get(&n.to_lowercase()).cloned()
+        self.inner.env.read().unwrap().get(&n.to_lowercase()).cloned()
     }
 
     pub fn set_var(&mut self, n: &str, v: &str) {
-        self.inner.env.insert(n.to_lowercase(), v.to_string());
+        self.inner.env.write().unwrap().insert(n.to_lowercase(), v.to_string());
     }
 
     pub fn unset_var(&mut self, n: &str) {
-        self.inner.env.remove(n);
+        self.inner.env.write().unwrap().remove(n);
     }
 
     pub fn feed_slice(&mut self, cmd: &[String]) -> Result<(), String> {
@@ -126,7 +118,7 @@ impl<C: 'static> Hackshell<C> {
             return Ok(());
         }
 
-        let command = self.inner.commands.get(&cmd[0]).cloned();
+        let command = self.inner.commands.read().unwrap().get(&cmd[0]).cloned();
 
         match command {
             Some(c) => {
@@ -152,7 +144,7 @@ impl<C: 'static> Hackshell<C> {
     }
 
     pub fn run(&mut self) -> Result<(), String> {
-        let event = self.inner.rl.readline(&self.inner.prompt).to_estring()?;
+        let event = self.inner.rl.lock().unwrap().readline(&self.inner.prompt.read().unwrap()).to_estring()?;
 
         match event {
             Event::Line(line) => {
