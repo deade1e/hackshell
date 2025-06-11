@@ -22,7 +22,7 @@ impl Command<u64> for Counter {
 }
 
 fn main() -> Result<(), String> {
-    let mut s = Hackshell::new(0u64, "hackshell> ", None).to_estring()?;
+    let s = Hackshell::new(0u64, "hackshell> ", None).to_estring()?;
 
     s.add_command(Counter {});
 

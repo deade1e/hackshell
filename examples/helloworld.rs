@@ -18,7 +18,7 @@ impl Command<()> for HelloWorld {
 }
 
 fn main() -> Result<(), String> {
-    let mut s = Hackshell::new((), "hackshell> ", None).to_estring()?;
+    let s = Hackshell::new((), "hackshell> ", None).to_estring()?;
 
     s.add_command(HelloWorld {});
 

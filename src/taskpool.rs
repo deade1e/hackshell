@@ -58,7 +58,7 @@ impl Task {
 }
 
 impl TaskPool {
-    pub fn spawn<F: Fn(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
+    pub fn spawn<F: FnOnce(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
         let run = Arc::new(AtomicBool::new(true));
         let run_ref = run.clone();
         let self_ref = self.clone();

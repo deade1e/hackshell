@@ -1,6 +1,6 @@
 [package]
 name = "hackshell"
-version = "0.1.12"
+version = "0.1.13"
 description = "Lightweight, customizable shell framework"
 repository = "https://github.com/pfrankw/hackshell"
 license = "MIT"

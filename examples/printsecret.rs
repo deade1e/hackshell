@@ -26,7 +26,7 @@ fn main() -> Result<(), String> {
         secret: "It rains red in some parts of the world".to_string(),
     };
 
-    let mut s = Hackshell::new(ctx, "hackshell> ", None).to_estring()?;
+    let s = Hackshell::new(ctx, "hackshell> ", None).to_estring()?;
 
     s.add_command(PrintSecret {});
 

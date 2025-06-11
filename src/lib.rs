@@ -46,7 +46,7 @@ impl<C> Clone for Hackshell<C> {
 
 impl<C: 'static> Hackshell<C> {
     pub fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
-        let mut s = Self {
+        let s = Self {
             inner: Arc::new(InnerHackshell {
                 ctx: Mutex::new(ctx),
                 commands: Default::default(),
@@ -87,7 +87,7 @@ impl<C: 'static> Hackshell<C> {
         self.inner.ctx.lock().unwrap()
     }
 
-    pub fn spawn<F: Fn(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
+    pub fn spawn<F: FnOnce(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
         self.inner.pool.spawn(name, func);
     }
 
