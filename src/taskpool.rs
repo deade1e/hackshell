@@ -76,7 +76,6 @@ impl TaskPool {
             let _ = self_ref.remove(&name_ref);
         });
 
-
         self.inner.tasks.write().unwrap().insert(
             name.clone(),
             Arc::new(Task {

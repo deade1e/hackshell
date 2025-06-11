@@ -40,7 +40,9 @@ pub struct Hackshell<C> {
 
 impl<C> Clone for Hackshell<C> {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self {
+            inner: self.inner.clone(),
+        }
     }
 }
 
