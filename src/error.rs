@@ -1,4 +1,4 @@
-use std::{fmt::Display, io::empty};
+use std::fmt::Display;
 
 use rustyline::error::ReadlineError;
 
