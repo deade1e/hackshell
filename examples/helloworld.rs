@@ -20,7 +20,7 @@ impl Command<()> for HelloWorld {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let s = Hackshell::new((), "helloworld> ", None)?;
+    let s = Hackshell::new((), "helloworld> ")?;
 
     s.add_command(HelloWorld {});
 

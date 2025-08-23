@@ -6,7 +6,7 @@ use rustyline::error::ReadlineError;
 pub enum HackshellError {
     String(String),
     Generic(Box<dyn std::error::Error + Send + Sync + 'static>),
-    ShellExit,
+    Exit,
     Interrupted,
     Eof,
     OtherReadline(ReadlineError),
@@ -50,7 +50,7 @@ impl Display for HackshellError {
             Self::OtherReadline(string) => write!(f, "Readline error: {}", string),
             Self::String(string) => write!(f, "{}", string),
             Self::Generic(e) => write!(f, "{}", e),
-            Self::ShellExit => write!(f, "Shell exit"),
+            Self::Exit => write!(f, "Shell exit"),
             Self::Interrupted => write!(f, "Interrupted"),
             Self::Eof => write!(f, "EOF"),
         }

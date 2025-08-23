@@ -37,7 +37,7 @@ impl Command<()> for RunTask {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let s = Hackshell::new((), "runtask> ", None)?;
+    let s = Hackshell::new((), "runtask> ")?;
 
     s.add_command(RunTask {});
 

@@ -12,6 +12,6 @@ impl<C: 'static> Command<C> for Exit {
     }
 
     fn run(&self, _: &Hackshell<C>, _cmd: &[String]) -> CommandResult {
-        Err(HackshellError::ShellExit.into())
+        Err(HackshellError::Exit.into())
     }
 }

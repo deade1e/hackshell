@@ -32,26 +32,31 @@ You can find complete examples in the `examples` directory. The following are qu
 ### Basic Example
 
 ```rust
-use std::path::Path;
-use hackshell::Hackshell;
+use hackshell::{Hackshell, error::HackshellError};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new shell with a custom context (in this case just ())
-    let mut shell = Hackshell::new((), "hackshell> ", Some(Path::new("history.txt")))?;
-    
+
+    let shell = Hackshell::<()>::new((), "basic> ")?;
+    shell.set_history_file("history.txt")?;
+
     // Enter the shell loop
     loop {
         match shell.run() {
             Ok(_) => {}
             Err(e) => {
-                if e == "EOF" || e == "CTRLC" || e == "exit" {
+                if matches!(e, HackshellError::Eof)
+                    || matches!(e, HackshellError::Interrupted)
+                    || matches!(e, HackshellError::Exit)
+                {
                     break;
                 }
+
                 eprintln!("Error: {}", e);
             }
         }
     }
-    
+
     Ok(())
 }
 ```
@@ -61,8 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 You can extend Hackshell with your own commands:
 
 ```rust
-use std::path::Path;
-use hackshell::{Hackshell, Command};
+use hackshell::{Hackshell, Command, CommandResult};
 
 struct MyCommand;
 
@@ -75,15 +79,16 @@ impl Command<()> for MyCommand {
         "mycmd - My custom command"
     }
 
-    fn run(&self, shell: &mut Hackshell<()>, args: &[String]) -> Result<(), String> {
+    fn run(&self, shell: &mut Hackshell<()>, args: &[String]) -> CommandResult {
         println!("My custom command was called with args: {:?}", &args[1..]);
         Ok(())
     }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut shell = Hackshell::new((), "hackshell> ", Some(Path::new("history.txt")))?;
-    
+    let mut shell = Hackshell::new((), "hackshell> ")?;
+    shell.set_history_file("something.txt")?;
+
     // Add your custom command
     shell.add_command(MyCommand {});
     
@@ -115,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         client: Mutex::new(DatabaseClient::connect("localhost:5432")?),
     };
     
-    let mut shell = Hackshell::new(app_state, "myapp> ", Some(Path::new("history.txt")))?;
+    let mut shell = Hackshell::new(app_state, "myapp> ")?;
     // ...
 }
 ```
@@ -149,7 +154,7 @@ Add Hackshell to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hackshell = "0.1.6"
+hackshell = "0.2.1"
 ```
 
 ## License

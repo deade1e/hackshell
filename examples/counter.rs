@@ -24,7 +24,7 @@ impl Command<u64> for Counter {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let s = Hackshell::new(0u64, "counter> ", None)?;
+    let s = Hackshell::new(0u64, "counter> ")?;
 
     s.add_command(Counter {});
 

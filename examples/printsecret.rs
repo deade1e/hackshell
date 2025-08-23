@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         secret: "It rains red in some parts of the world".to_string(),
     };
 
-    let s = Hackshell::new(ctx, "printsecret> ", None)?;
+    let s = Hackshell::new(ctx, "printsecret> ")?;
 
     s.add_command(PrintSecret {});
 
