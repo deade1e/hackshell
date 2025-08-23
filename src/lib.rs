@@ -1,20 +1,16 @@
 use std::{
     collections::HashMap,
-    io,
     path::Path,
     sync::{Arc, Mutex, MutexGuard, RwLock, atomic::AtomicBool},
 };
-
 mod commands;
 pub mod error;
-mod readline;
 mod taskpool;
 
-use crate::readline::{Event, Readline};
 use commands::{
     env::Env, exit::Exit, get::Get, help::Help, set::Set, sleep::Sleep, task::Task, unset::Unset,
 };
-use error::MapErrToString;
+use rustyline::{DefaultEditor, error::ReadlineError};
 use taskpool::{TaskMetadata, TaskPool};
 
 pub trait Command<C>: Send + Sync + 'static {
@@ -31,7 +27,7 @@ struct InnerHackshell<C> {
     env: RwLock<HashMap<String, String>>,
     pool: TaskPool,
     prompt: RwLock<String>,
-    rl: Mutex<Readline>,
+    rl: Mutex<DefaultEditor>,
 }
 
 pub struct Hackshell<C> {
@@ -47,7 +43,13 @@ impl<C> Clone for Hackshell<C> {
 }
 
 impl<C: 'static> Hackshell<C> {
-    pub fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> io::Result<Self> {
+    pub fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> Result<Self, String> {
+        let mut rl = DefaultEditor::new().unwrap();
+
+        if let Some(history_file) = history_file {
+            rl.load_history(history_file).unwrap();
+        }
+
         let s = Self {
             inner: Arc::new(InnerHackshell {
                 ctx: Mutex::new(ctx),
@@ -55,7 +57,7 @@ impl<C: 'static> Hackshell<C> {
                 env: Default::default(),
                 pool: Default::default(),
                 prompt: RwLock::new(prompt.to_string()),
-                rl: Mutex::new(Readline::new(history_file)?),
+                rl: Mutex::new(rl),
             }),
         };
 
@@ -150,7 +152,7 @@ impl<C: 'static> Hackshell<C> {
         match command {
             Some(c) => {
                 if let Err(e) = c.run(self, cmd) {
-                    if e == "exit" {
+                    if e.to_string() == "exit" {
                         return Err(e);
                     }
 
@@ -171,25 +173,22 @@ impl<C: 'static> Hackshell<C> {
     }
 
     pub fn run(&self) -> Result<(), String> {
-        let event = self
-            .inner
-            .rl
-            .lock()
-            .unwrap()
-            .readline(&self.inner.prompt.read().unwrap())
-            .to_estring()?;
-
-        match event {
-            Event::Line(line) => {
+        let mut rl = self.inner.rl.lock().unwrap();
+        let readline = rl.readline("hackshell> ");
+        match readline {
+            Ok(line) => {
                 return self.feed_line(&line);
             }
-            Event::Ctrlc => {
+            Err(ReadlineError::Interrupted) => {
                 return Err("CTRLC".to_string());
             }
-            Event::Eof => {
+
+            Err(ReadlineError::Eof) => {
                 return Err("EOF".to_string());
             }
-            Event::Tab => {}
+            Err(e) => {
+                eprintln!("{}", e);
+            }
         }
 
         Ok(())
