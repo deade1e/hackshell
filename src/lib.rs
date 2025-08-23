@@ -192,6 +192,7 @@ impl<C: 'static> Hackshell<C> {
         match readline {
             Ok(line) => {
                 if let Some(hfile) = self.inner.history_file.read().unwrap().as_ref() {
+                    rl.add_history_entry(&line)?;
                     rl.save_history(hfile)?;
                 }
 
