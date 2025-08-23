@@ -1,4 +1,6 @@
-use hackshell::{Command, Hackshell, error::MapErrToString};
+use std::error::Error;
+
+use hackshell::{Command, CommandResult, Hackshell};
 
 struct Counter {}
 
@@ -11,7 +13,7 @@ impl Command<u64> for Counter {
         "This is a non-default command installed by the Hackshell consumer. It simply increments an internal counter"
     }
 
-    fn run(&self, s: &Hackshell<u64>, _cmd: &[String]) -> Result<(), String> {
+    fn run(&self, s: &Hackshell<u64>, _cmd: &[String]) -> CommandResult {
         let mut num = s.get_ctx();
         *(num) += 1;
 
@@ -21,12 +23,12 @@ impl Command<u64> for Counter {
     }
 }
 
-fn main() -> Result<(), String> {
-    let s = Hackshell::new(0u64, "hackshell> ", None).to_estring()?;
+fn main() -> Result<(), Box<dyn Error>> {
+    let s = Hackshell::new(0u64, "counter> ", None)?;
 
     s.add_command(Counter {});
 
     loop {
-        s.run().to_estring()?;
+        s.run()?;
     }
 }

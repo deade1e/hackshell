@@ -1,4 +1,4 @@
-use crate::{Command, Hackshell};
+use crate::{Command, CommandResult, Hackshell};
 
 pub struct Help {}
 
@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Help {
         "Displays this message"
     }
 
-    fn run(&self, s: &Hackshell<C>, _: &[String]) -> Result<(), String> {
+    fn run(&self, s: &Hackshell<C>, _: &[String]) -> CommandResult {
         let commands = s.get_commands();
 
         eprintln!("\n{:<24} {:<24}", "Command", "Description");

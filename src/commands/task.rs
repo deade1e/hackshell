@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::{Command, Hackshell, error::MapErrToString};
+use crate::{Command, CommandResult, Hackshell};
 
 #[derive(Parser, Debug)]
 struct Cmd {
@@ -24,8 +24,8 @@ impl<C: 'static> Command<C> for Task {
         "Lists and manages tasks"
     }
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> Result<(), String> {
-        let args = Cmd::try_parse_from(cmd).to_estring()?;
+    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> CommandResult {
+        let args = Cmd::try_parse_from(cmd)?;
 
         if let Some(name) = args.terminate {
             s.terminate(&name)?;

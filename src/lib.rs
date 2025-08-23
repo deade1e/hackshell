@@ -3,6 +3,9 @@ use std::{
     path::Path,
     sync::{Arc, Mutex, MutexGuard, RwLock, atomic::AtomicBool},
 };
+
+use crate::error::{HackshellError, Result};
+
 mod commands;
 pub mod error;
 mod taskpool;
@@ -18,8 +21,11 @@ pub trait Command<C>: Send + Sync + 'static {
 
     fn help(&self) -> &'static str;
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> Result<(), String>;
+    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> CommandResult;
 }
+
+pub type CommandResult =
+    std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 struct InnerHackshell<C> {
     ctx: Mutex<C>,
@@ -43,11 +49,11 @@ impl<C> Clone for Hackshell<C> {
 }
 
 impl<C: 'static> Hackshell<C> {
-    pub fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> Result<Self, String> {
-        let mut rl = DefaultEditor::new().unwrap();
+    pub fn new(ctx: C, prompt: &str, history_file: Option<&Path>) -> Result<Self> {
+        let mut rl = DefaultEditor::new()?;
 
         if let Some(history_file) = history_file {
-            rl.load_history(history_file).unwrap();
+            rl.load_history(history_file)?;
         }
 
         let s = Self {
@@ -95,7 +101,7 @@ impl<C: 'static> Hackshell<C> {
         self.inner.pool.spawn(name, func);
     }
 
-    pub fn terminate(&self, name: &str) -> Result<(), String> {
+    pub fn terminate(&self, name: &str) -> Result<()> {
         self.inner.pool.remove(name)
     }
 
@@ -142,7 +148,7 @@ impl<C: 'static> Hackshell<C> {
         self.inner.env.write().unwrap().remove(n);
     }
 
-    pub fn feed_slice(&self, cmd: &[String]) -> Result<(), String> {
+    pub fn feed_slice(&self, cmd: &[String]) -> Result<()> {
         if cmd.is_empty() {
             return Ok(());
         }
@@ -152,8 +158,8 @@ impl<C: 'static> Hackshell<C> {
         match command {
             Some(c) => {
                 if let Err(e) = c.run(self, cmd) {
-                    if e.to_string() == "exit" {
-                        return Err(e);
+                    if let Some(HackshellError::ShellExit) = e.downcast_ref::<HackshellError>() {
+                        return Err(e.into());
                     }
 
                     eprintln!("{}", e);
@@ -167,25 +173,25 @@ impl<C: 'static> Hackshell<C> {
         Ok(())
     }
 
-    pub fn feed_line(&self, line: &str) -> Result<(), String> {
+    pub fn feed_line(&self, line: &str) -> Result<()> {
         let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
         self.feed_slice(&cmd)
     }
 
-    pub fn run(&self) -> Result<(), String> {
+    pub fn run(&self) -> Result<()> {
         let mut rl = self.inner.rl.lock().unwrap();
-        let readline = rl.readline("hackshell> ");
+        let readline = rl.readline(&*self.inner.prompt.read().unwrap());
+
         match readline {
             Ok(line) => {
                 return self.feed_line(&line);
             }
-            Err(ReadlineError::Interrupted) => {
-                return Err("CTRLC".to_string());
+            Err(e)
+                if matches!(e, ReadlineError::Interrupted) || matches!(e, ReadlineError::Eof) =>
+            {
+                return Err(e.into());
             }
 
-            Err(ReadlineError::Eof) => {
-                return Err("EOF".to_string());
-            }
             Err(e) => {
                 eprintln!("{}", e);
             }

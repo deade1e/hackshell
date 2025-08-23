@@ -7,6 +7,8 @@ use std::{
     thread::JoinHandle,
 };
 
+use crate::error::Result;
+
 #[derive(Clone)]
 pub struct TaskMetadata {
     pub name: String,
@@ -42,7 +44,7 @@ impl Clone for TaskPool {
 }
 
 impl Task {
-    pub fn kill(&self) -> Result<(), String> {
+    pub fn kill(&self) -> Result<()> {
         if let Some(run) = self.run.lock().unwrap().take() {
             // Signaling to a sync thread, that has no yelding points, to stop.
             run.store(false, Ordering::Relaxed);
@@ -89,7 +91,7 @@ impl TaskPool {
         );
     }
 
-    pub fn remove(&self, name: &str) -> Result<(), String> {
+    pub fn remove(&self, name: &str) -> Result<()> {
         let task = self
             .inner
             .tasks

@@ -1,4 +1,6 @@
-use hackshell::{Command, Hackshell, error::MapErrToString};
+use std::error::Error;
+
+use hackshell::{Command, CommandResult, Hackshell};
 
 struct HelloWorld {}
 
@@ -11,18 +13,18 @@ impl Command<()> for HelloWorld {
         "This is a non-default command installed by the Hackshell consumer. It simply prints Hello, World."
     }
 
-    fn run(&self, _s: &Hackshell<()>, _cmd: &[String]) -> Result<(), String> {
+    fn run(&self, _s: &Hackshell<()>, _cmd: &[String]) -> CommandResult {
         println!("Hello, World!");
         Ok(())
     }
 }
 
-fn main() -> Result<(), String> {
-    let s = Hackshell::new((), "hackshell> ", None).to_estring()?;
+fn main() -> Result<(), Box<dyn Error>> {
+    let s = Hackshell::new((), "helloworld> ", None)?;
 
     s.add_command(HelloWorld {});
 
     loop {
-        s.run().to_estring()?;
+        s.run()?;
     }
 }

@@ -1,4 +1,6 @@
-use hackshell::{Command, Hackshell, error::MapErrToString};
+use std::error::Error;
+
+use hackshell::{Command, CommandResult, Hackshell};
 
 struct MyContext {
     secret: String,
@@ -15,22 +17,22 @@ impl Command<MyContext> for PrintSecret {
         "This is a non-default command installed by the Hackshell consumer. It prints a variable inside the passed context."
     }
 
-    fn run(&self, s: &Hackshell<MyContext>, _cmd: &[String]) -> Result<(), String> {
+    fn run(&self, s: &Hackshell<MyContext>, _cmd: &[String]) -> CommandResult {
         println!("{}", s.get_ctx().secret);
         Ok(())
     }
 }
 
-fn main() -> Result<(), String> {
+fn main() -> Result<(), Box<dyn Error>> {
     let ctx = MyContext {
         secret: "It rains red in some parts of the world".to_string(),
     };
 
-    let s = Hackshell::new(ctx, "hackshell> ", None).to_estring()?;
+    let s = Hackshell::new(ctx, "printsecret> ", None)?;
 
     s.add_command(PrintSecret {});
 
     loop {
-        s.run().to_estring()?;
+        s.run()?;
     }
 }

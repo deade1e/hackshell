@@ -1,4 +1,4 @@
-use crate::{Command, Hackshell};
+use crate::{Command, CommandResult, Hackshell, error::HackshellError};
 
 pub struct Exit {}
 
@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Exit {
         "Exits the program"
     }
 
-    fn run(&self, _: &Hackshell<C>, _cmd: &[String]) -> Result<(), String> {
-        Err("exit".to_string())
+    fn run(&self, _: &Hackshell<C>, _cmd: &[String]) -> CommandResult {
+        Err(HackshellError::ShellExit.into())
     }
 }
