@@ -30,17 +30,9 @@ struct InnerTaskPool {
     tasks: RwLock<HashMap<String, Arc<Task>>>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TaskPool {
     inner: Arc<InnerTaskPool>,
-}
-
-impl Clone for TaskPool {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
-    }
 }
 
 impl Task {
