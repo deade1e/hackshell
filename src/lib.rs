@@ -8,7 +8,7 @@ use crate::error::{HackshellError, Result};
 
 mod commands;
 pub mod error;
-mod taskpool;
+pub mod taskpool;
 
 use commands::{
     env::Env, exit::Exit, get::Get, help::Help, set::Set, sleep::Sleep, task::Task, unset::Unset,

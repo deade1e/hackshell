@@ -1,4 +1,6 @@
 use crate::error::{HackshellError, Result};
+#[cfg(feature = "async")]
+use std::pin::Pin;
 use std::{
     collections::HashMap,
     sync::{
@@ -34,6 +36,8 @@ trait Task {
     fn meta(&self) -> TaskMetadata;
     fn kill(&self) -> Result<()>;
     fn wait(&self) -> Result<()>;
+    #[cfg(feature = "async")]
+    fn wait_async(&self) -> Pin<Box<dyn Future<Output = Result<()>>>>;
 }
 
 #[derive(Default)]
@@ -71,6 +75,15 @@ impl Task for SyncTask {
             HackshellError::JoinError(crate::error::JoinError::Sync(Box::new(Mutex::new(e))))
         })
     }
+
+    #[cfg(feature = "async")]
+    fn wait_async(&self) -> Pin<Box<dyn Future<Output = Result<()>>>> {
+        Box::pin(async {
+            Err(HackshellError::JoinError(
+                crate::error::JoinError::CannotWaitAsync,
+            ))
+        })
+    }
 }
 
 #[cfg(feature = "async")]
@@ -95,7 +108,25 @@ impl Task for AsyncTask {
             .take()
             .ok_or("Can't take wait handle")?;
 
-        tokio::runtime::Handle::current().block_on(async move {
+        let handle = tokio::runtime::Handle::try_current().map_err(|e| e.to_string())?;
+
+        handle.block_on(async move {
+            wh.await
+                .map_err(|e| HackshellError::JoinError(crate::error::JoinError::Async(e)))
+        })
+    }
+
+    #[cfg(feature = "async")]
+    fn wait_async(&self) -> Pin<Box<dyn Future<Output = Result<()>>>> {
+        let wh = self
+            .wait_handle
+            .lock()
+            .unwrap()
+            .take()
+            .ok_or("Can't take wait handle")
+            .unwrap();
+
+        Box::pin(async move {
             wh.await
                 .map_err(|e| HackshellError::JoinError(crate::error::JoinError::Async(e)))
         })
@@ -193,6 +224,19 @@ impl TaskPool {
             // Killing and removal are automatic
         }
 
+        Ok(())
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn wait_async(&self, name: &str) -> Result<()> {
+        let tasks = self.inner.tasks.read().unwrap();
+
+        if let Some(task) = tasks.get(name).cloned() {
+            std::mem::drop(tasks);
+            task.wait_async().await?;
+
+            // Killing and removal are automatic
+        }
         Ok(())
     }
 

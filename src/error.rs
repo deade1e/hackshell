@@ -7,6 +7,8 @@ pub enum JoinError {
     Sync(Box<dyn Any + Sync + Send + 'static>),
 
     #[cfg(feature = "async")]
+    CannotWaitAsync,
+    #[cfg(feature = "async")]
     Async(tokio::task::JoinError),
 }
 
@@ -82,6 +84,10 @@ impl Display for HackshellError {
                 }
                 #[cfg(feature = "async")]
                 JoinError::Async(e) => write!(f, "{}", e),
+                #[cfg(feature = "async")]
+                JoinError::CannotWaitAsync => {
+                    write!(f, "Sync task cannot be waited asynchronously")
+                }
             },
         }
     }
