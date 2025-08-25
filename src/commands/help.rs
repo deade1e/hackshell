@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{Command, CommandResult, Hackshell};
 
 pub struct Help {}
@@ -13,12 +15,18 @@ impl<C: 'static> Command<C> for Help {
 
     fn run(&self, s: &Hackshell<C>, _: &[String]) -> CommandResult {
         let commands = s.get_commands();
+        let mut printed = vec![];
 
         eprintln!("\n{:<24} {:<24}", "Command", "Description");
         eprintln!("{:<24} {:<24}\n", "----", "----------");
 
         for c in commands {
-            eprintln!("{:<24} {:<24}", c.commands().join(", "), c.help());
+            let already = printed.iter().any(|e| Arc::ptr_eq(e, &c));
+
+            if !already {
+                eprintln!("{:<24} {:<24}", c.commands().join(", "), c.help());
+                printed.push(c.clone());
+            }
         }
 
         eprintln!();
