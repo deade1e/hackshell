@@ -1,6 +1,14 @@
-use std::fmt::Display;
+use std::{any::Any, fmt::Display};
 
 use rustyline::error::ReadlineError;
+
+#[derive(Debug)]
+pub enum JoinError {
+    Sync(Box<dyn Any + Sync + Send + 'static>),
+
+    #[cfg(feature = "async")]
+    Async(tokio::task::JoinError),
+}
 
 #[derive(Debug)]
 pub enum HackshellError {
@@ -10,6 +18,7 @@ pub enum HackshellError {
     Interrupted,
     Eof,
     OtherReadline(ReadlineError),
+    JoinError(JoinError),
 }
 
 impl From<Box<dyn std::error::Error + Send + Sync + 'static>> for HackshellError {
@@ -44,15 +53,36 @@ impl From<ReadlineError> for HackshellError {
     }
 }
 
+#[cfg(feature = "async")]
+impl From<tokio::task::JoinError> for HackshellError {
+    fn from(value: tokio::task::JoinError) -> Self {
+        // Conversion loses context
+        Self::JoinError(JoinError::Async(value))
+    }
+}
+
 impl Display for HackshellError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::OtherReadline(string) => write!(f, "Readline error: {}", string),
-            Self::String(string) => write!(f, "{}", string),
+            Self::OtherReadline(message) => write!(f, "Readline error: {}", message),
+            Self::String(message) => write!(f, "{}", message),
             Self::Generic(e) => write!(f, "{}", e),
             Self::Exit => write!(f, "Shell exit"),
             Self::Interrupted => write!(f, "Interrupted"),
             Self::Eof => write!(f, "EOF"),
+            Self::JoinError(e) => match e {
+                JoinError::Sync(e) => {
+                    if let Some(message) = e.downcast_ref::<&str>() {
+                        write!(f, "Thread panicked: {}", message)
+                    } else if let Some(message) = e.downcast_ref::<String>() {
+                        write!(f, "Thread panicked: {}", message)
+                    } else {
+                        write!(f, "Thread panicked with non-string payload")
+                    }
+                }
+                #[cfg(feature = "async")]
+                JoinError::Async(e) => write!(f, "{}", e),
+            },
         }
     }
 }

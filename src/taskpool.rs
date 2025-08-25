@@ -1,3 +1,4 @@
+use crate::error::{HackshellError, Result};
 use std::{
     collections::HashMap,
     sync::{
@@ -7,15 +8,13 @@ use std::{
     thread::JoinHandle,
 };
 
-use crate::error::Result;
-
 #[derive(Clone)]
 pub struct TaskMetadata {
     pub name: String,
     pub started: chrono::DateTime<chrono::Utc>,
 }
 
-struct Task {
+struct SyncTask {
     meta: TaskMetadata,
 
     /// This is used to signal a sync thread to stop gracefully.
@@ -25,9 +24,21 @@ struct Task {
     wait_handle: Mutex<Option<JoinHandle<()>>>,
 }
 
+#[cfg(feature = "async")]
+struct AsyncTask {
+    meta: TaskMetadata,
+    wait_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
+}
+
+trait Task {
+    fn meta(&self) -> TaskMetadata;
+    fn kill(&self) -> Result<()>;
+    fn wait(&self) -> Result<()>;
+}
+
 #[derive(Default)]
 struct InnerTaskPool {
-    tasks: RwLock<HashMap<String, Arc<Task>>>,
+    tasks: RwLock<HashMap<String, Arc<dyn Task + Send + Sync>>>,
 }
 
 #[derive(Default, Clone)]
@@ -35,8 +46,12 @@ pub struct TaskPool {
     inner: Arc<InnerTaskPool>,
 }
 
-impl Task {
-    pub fn kill(&self) -> Result<()> {
+impl Task for SyncTask {
+    fn meta(&self) -> TaskMetadata {
+        self.meta.clone()
+    }
+
+    fn kill(&self) -> Result<()> {
         if let Some(run) = self.run.lock().unwrap().take() {
             // Signaling to a sync thread, that has no yelding points, to stop.
             run.store(false, Ordering::Relaxed);
@@ -44,10 +59,46 @@ impl Task {
         Ok(())
     }
 
-    pub fn wait(&self) {
+    fn wait(&self) -> Result<()> {
+        let wh = self
+            .wait_handle
+            .lock()
+            .unwrap()
+            .take()
+            .ok_or("Can't take wait handle")?;
+
+        wh.join().map_err(|e| {
+            HackshellError::JoinError(crate::error::JoinError::Sync(Box::new(Mutex::new(e))))
+        })
+    }
+}
+
+#[cfg(feature = "async")]
+impl Task for AsyncTask {
+    fn meta(&self) -> TaskMetadata {
+        self.meta.clone()
+    }
+
+    fn kill(&self) -> Result<()> {
         if let Some(handle) = self.wait_handle.lock().unwrap().take() {
-            let _ = handle.join();
+            handle.abort();
         }
+
+        Ok(())
+    }
+
+    fn wait(&self) -> Result<()> {
+        let wh = self
+            .wait_handle
+            .lock()
+            .unwrap()
+            .take()
+            .ok_or("Can't take wait handle")?;
+
+        tokio::runtime::Handle::current().block_on(async move {
+            wh.await
+                .map_err(|e| HackshellError::JoinError(crate::error::JoinError::Async(e)))
+        })
     }
 }
 
@@ -63,24 +114,53 @@ impl TaskPool {
         // In the case it's there, we kill it and insert the new one.
         let _ = self.remove(&name);
 
-        let task = std::thread::spawn(move || {
+        let handle = std::thread::spawn(move || {
             func(run_ref);
 
             // Automatic removal once it's finished
             let _ = self_ref.remove(&name_ref);
         });
 
-        self.inner.tasks.write().unwrap().insert(
-            name.clone(),
-            Arc::new(Task {
-                meta: TaskMetadata {
-                    name: name.clone(),
-                    started: chrono::Utc::now(),
-                },
-                run: Mutex::new(Some(run)),
-                wait_handle: Mutex::new(Some(task)),
-            }),
-        );
+        let task = SyncTask {
+            meta: TaskMetadata {
+                name: name.clone(),
+                started: chrono::Utc::now(),
+            },
+            run: Mutex::new(Some(run)),
+            wait_handle: Mutex::new(Some(handle)),
+        };
+
+        let task = Arc::new(task);
+        self.inner.tasks.write().unwrap().insert(name, task);
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn spawn_async<F>(&self, name: &str, func: F)
+    where
+        F: Future + Send + Sync + 'static,
+        F::Output: Send + Sync,
+    {
+        let _ = self.remove(&name);
+        let self_ref = self.clone();
+        let name = name.to_string();
+        let name_ref = name.clone();
+
+        let handle = tokio::spawn(async move {
+            func.await;
+            let _ = self_ref.remove(&name_ref);
+        });
+
+        let task = AsyncTask {
+            meta: TaskMetadata {
+                name: name.clone(),
+                started: chrono::Utc::now(),
+            },
+            wait_handle: Mutex::new(Some(handle)),
+        };
+
+        let task = Arc::new(task);
+
+        self.inner.tasks.write().unwrap().insert(name, task);
     }
 
     pub fn remove(&self, name: &str) -> Result<()> {
@@ -105,13 +185,15 @@ impl TaskPool {
         Ok(())
     }
 
-    pub fn wait(&self, name: &str) {
+    pub fn wait(&self, name: &str) -> Result<()> {
         let tasks = self.inner.tasks.read().unwrap();
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
-            task.wait();
+            task.wait()?;
             // Killing and removal are automatic
         }
+
+        Ok(())
     }
 
     pub fn get_all(&self) -> Vec<TaskMetadata> {
@@ -120,7 +202,7 @@ impl TaskPool {
             .read()
             .unwrap()
             .iter()
-            .map(|item| item.1.meta.clone())
+            .map(|item| item.1.meta())
             .collect::<Vec<TaskMetadata>>()
     }
 }

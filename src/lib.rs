@@ -112,8 +112,8 @@ impl<C: 'static> Hackshell<C> {
         self.inner.pool.remove(name)
     }
 
-    pub fn wait(&self, name: &str) {
-        self.inner.pool.wait(name);
+    pub fn wait(&self, name: &str) -> Result<()> {
+        self.inner.pool.wait(name)
     }
 
     pub fn get_tasks(&self) -> Vec<TaskMetadata> {
