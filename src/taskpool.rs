@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
     sync::{
         Arc, Mutex, RwLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     thread::JoinHandle,
 };
@@ -14,6 +14,7 @@ use std::{
 pub struct TaskMetadata {
     pub name: String,
     pub started: chrono::DateTime<chrono::Utc>,
+    pub id: u64,
 }
 
 struct SyncTask {
@@ -42,6 +43,7 @@ trait Task {
 
 #[derive(Default)]
 struct InnerTaskPool {
+    task_id: Arc<AtomicU64>,
     tasks: RwLock<HashMap<String, Arc<dyn Task + Send + Sync>>>,
 }
 
@@ -137,28 +139,33 @@ impl Task for AsyncTask {
 }
 
 impl TaskPool {
+    fn gen_task_id(&self) -> u64 {
+        self.inner.task_id.fetch_add(1, Ordering::Relaxed)
+    }
+
     pub fn spawn<F: FnOnce(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
         let run = Arc::new(AtomicBool::new(true));
         let run_ref = run.clone();
         let self_ref = self.clone();
         let name = name.to_string();
-        let name_ref = name.clone();
 
         // There could or could not be the task with the same name.
         // In the case it's there, we kill it and insert the new one.
         let _ = self.remove(&name);
+        let id = self.gen_task_id();
 
         let handle = std::thread::spawn(move || {
             func(run_ref);
 
             // Automatic removal once it's finished
-            let _ = self_ref.remove(&name_ref);
+            let _ = self_ref.remove_by_id(id);
         });
 
         let task = SyncTask {
             meta: TaskMetadata {
                 name: name.clone(),
                 started: chrono::Utc::now(),
+                id: id,
             },
             run: Mutex::new(Some(run)),
             wait_handle: Mutex::new(Some(handle)),
@@ -175,19 +182,20 @@ impl TaskPool {
         F::Output: Send + Sync,
     {
         let _ = self.remove(&name);
+        let id = self.gen_task_id();
         let self_ref = self.clone();
         let name = name.to_string();
-        let name_ref = name.clone();
 
         let handle = tokio::spawn(async move {
             func.await;
-            let _ = self_ref.remove(&name_ref);
+            let _ = self_ref.remove_by_id(id);
         });
 
         let task = AsyncTask {
             meta: TaskMetadata {
                 name: name.clone(),
                 started: chrono::Utc::now(),
+                id,
             },
             wait_handle: Mutex::new(Some(handle)),
         };
@@ -195,6 +203,22 @@ impl TaskPool {
         let task = Arc::new(task);
 
         self.inner.tasks.write().unwrap().insert(name, task);
+    }
+
+    fn remove_by_id(&self, id: u64) -> Result<()> {
+        let mut tasks = self.inner.tasks.write().unwrap();
+
+        let key = tasks
+            .iter()
+            .find(|(_, v)| v.meta().id == id)
+            .map(|(k, _)| k.clone())
+            .ok_or("Cannot find the task")?;
+
+        let (_, task) = tasks.remove_entry(&key).unwrap();
+
+        task.kill()?;
+
+        Ok(())
     }
 
     pub fn remove(&self, name: &str) -> Result<()> {
