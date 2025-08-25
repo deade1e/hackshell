@@ -113,7 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shell = Hackshell::new(context, "async> ")?;
 
     // Set up history
-    shell.set_history_file("async_history.txt")?;
+    shell.set_history_file("history.txt")?;
 
     // Add our custom async commands
     shell.add_command(AsyncTaskCommand);
