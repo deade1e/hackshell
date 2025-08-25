@@ -123,13 +123,16 @@ impl Task for AsyncTask {
             .lock()
             .unwrap()
             .take()
-            .ok_or("Can't take wait handle")
-            .unwrap();
+            .ok_or("Can't take wait handle");
 
-        Box::pin(async move {
-            wh.await
-                .map_err(|e| HackshellError::JoinError(crate::error::JoinError::Async(e)))
-        })
+        match wh {
+            Ok(wh) => Box::pin(async move {
+                wh.await
+                    .map_err(|e| HackshellError::JoinError(crate::error::JoinError::Async(e)))
+            }),
+
+            Err(e) => Box::pin(async move { Err(e.into()) }),
+        }
     }
 }
 
@@ -220,11 +223,17 @@ impl TaskPool {
         let tasks = self.inner.tasks.read().unwrap();
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
-            task.wait()?;
-            // Killing and removal are automatic
-        }
 
-        Ok(())
+            match task.wait() {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    let _ = self.remove(&task.meta().name);
+                    Err(e)
+                }
+            }
+        } else {
+            Ok(())
+        }
     }
 
     #[cfg(feature = "async")]
@@ -233,11 +242,17 @@ impl TaskPool {
 
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
-            task.wait_async().await?;
 
-            // Killing and removal are automatic
+            match task.wait_async().await {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    let _ = self.remove(&task.meta().name);
+                    Err(e)
+                }
+            }
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     pub fn get_all(&self) -> Vec<TaskMetadata> {
