@@ -169,7 +169,7 @@ impl TaskPool {
     }
 
     #[cfg(feature = "async")]
-    pub async fn spawn_async<F>(&self, name: &str, func: F)
+    pub fn spawn_async<F>(&self, name: &str, func: F)
     where
         F: Future + Send + Sync + 'static,
         F::Output: Send + Sync,

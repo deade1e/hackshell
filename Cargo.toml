@@ -1,6 +1,6 @@
 [package]
 name = "hackshell"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Francesco Pompo' <f@francesco.cc>"]
 description = "Lightweight, customizable shell framework"
 repository = "https://github.com/deade1e/hackshell"
@@ -20,3 +20,7 @@ tokio = {version = "1", features = ["time", "macros"]}
 [features]
 default = []
 async = ["tokio/rt-multi-thread"]
+
+[[example]]
+name = "async"
+required-features = ["async"]

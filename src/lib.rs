@@ -81,7 +81,15 @@ impl<C: 'static> Hackshell<C> {
         let mut hf = self.inner.history_file.write().unwrap();
         *hf = Some(path.as_ref().to_path_buf());
 
-        self.inner.rl.lock().unwrap().load_history(&path)?;
+        let res = self.inner.rl.lock().unwrap().load_history(&path);
+
+        if let Err(ReadlineError::Io(ref e)) = res {
+            if matches!(e.kind(), std::io::ErrorKind::NotFound) {
+                return Ok(());
+            }
+        }
+
+        res?;
 
         Ok(())
     }
@@ -108,12 +116,26 @@ impl<C: 'static> Hackshell<C> {
         self.inner.pool.spawn(name, func);
     }
 
+    #[cfg(feature = "async")]
+    pub fn spawn_async<F>(&self, name: &str, func: F)
+    where
+        F: Future + Send + Sync + 'static,
+        F::Output: Send + Sync,
+    {
+        self.inner.pool.spawn_async(name, func);
+    }
+
     pub fn terminate(&self, name: &str) -> Result<()> {
         self.inner.pool.remove(name)
     }
 
     pub fn wait(&self, name: &str) -> Result<()> {
         self.inner.pool.wait(name)
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn wait_async(&self, name: &str) -> Result<()> {
+        self.inner.pool.wait_async(name).await
     }
 
     pub fn get_tasks(&self) -> Vec<TaskMetadata> {

@@ -211,8 +211,7 @@ mod async_tests {
         pool.spawn_async("async_task", async move {
             tokio::time::sleep(Duration::from_millis(50)).await;
             executed_clone.store(true, Ordering::Relaxed);
-        })
-        .await;
+        });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(executed.load(Ordering::Relaxed));
@@ -224,8 +223,7 @@ mod async_tests {
 
         pool.spawn_async("async_metadata_test", async {
             tokio::time::sleep(Duration::from_millis(100)).await;
-        })
-        .await;
+        });
 
         let tasks = pool.get_all();
         assert_eq!(tasks.len(), 1);
@@ -243,8 +241,7 @@ mod async_tests {
         pool.spawn_async("killable_async", async move {
             tokio::time::sleep(Duration::from_secs(10)).await;
             still_running_clone.store(false, Ordering::Relaxed);
-        })
-        .await;
+        });
 
         tokio::time::sleep(Duration::from_millis(50)).await;
         assert!(still_running.load(Ordering::Relaxed));
@@ -266,8 +263,7 @@ mod async_tests {
         pool.spawn_async("wait_async", async move {
             tokio::time::sleep(Duration::from_millis(100)).await;
             completed_clone.store(true, Ordering::Relaxed);
-        })
-        .await;
+        });
 
         // Wait for the async task from sync context
         assert!(pool.wait_async("wait_async").await.is_ok());
@@ -280,8 +276,7 @@ mod async_tests {
 
         pool.spawn_async("async_auto_remove", async {
             tokio::time::sleep(Duration::from_millis(50)).await;
-        })
-        .await;
+        });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -304,8 +299,7 @@ mod async_tests {
         let async_counter_clone = async_counter.clone();
         pool.spawn_async("async_task", async move {
             async_counter_clone.fetch_add(1, Ordering::Relaxed);
-        })
-        .await;
+        });
 
         assert!(pool.wait("sync_task").is_ok());
         assert!(pool.wait_async("async_task").await.is_ok());
