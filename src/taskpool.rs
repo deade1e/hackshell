@@ -198,23 +198,15 @@ impl TaskPool {
     }
 
     pub fn remove(&self, name: &str) -> Result<()> {
-        let task = self
+        let (_, task) = self
             .inner
-            .tasks
-            .read()
-            .unwrap()
-            .get(name)
-            .ok_or("Task not found")?
-            .clone();
-
-        task.kill()?;
-
-        self.inner
             .tasks
             .write()
             .unwrap()
-            .remove(name)
-            .ok_or("Failed to remove task from the pool")?;
+            .remove_entry(name)
+            .ok_or("Task not found")?;
+
+        task.kill()?;
 
         Ok(())
     }
