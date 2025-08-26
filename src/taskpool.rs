@@ -243,7 +243,7 @@ impl TaskPool {
             match task.wait() {
                 Ok(()) => Ok(()),
                 Err(e) => {
-                    let _ = self.remove(&task.meta().name);
+                    let _ = self.remove_by_id(task.meta().id);
                     Err(e)
                 }
             }
@@ -262,7 +262,7 @@ impl TaskPool {
             match task.wait_async().await {
                 Ok(()) => Ok(()),
                 Err(e) => {
-                    let _ = self.remove(&task.meta().name);
+                    let _ = self.remove_by_id(task.meta().id);
                     Err(e)
                 }
             }
