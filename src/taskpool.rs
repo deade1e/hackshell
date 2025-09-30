@@ -249,6 +249,7 @@ impl TaskPool {
             std::mem::drop(tasks);
 
             match task.wait() {
+                // If Ok() the task finished successfully and already removed itself
                 Ok(ret) => Ok(ret),
                 Err(e) => {
                     let _ = self.remove_by_id(task.meta().id);
