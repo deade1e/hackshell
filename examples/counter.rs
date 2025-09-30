@@ -19,7 +19,7 @@ impl Command<u64> for Counter {
 
         println!("The counter is now: {}\r", num);
 
-        Ok(())
+        Ok(None)
     }
 }
 

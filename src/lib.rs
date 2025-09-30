@@ -25,7 +25,7 @@ pub trait Command<C>: Send + Sync + 'static {
 }
 
 pub type CommandResult =
-    std::result::Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
+    std::result::Result<Option<String>, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 struct InnerHackshell<C> {
     ctx: Mutex<C>,
@@ -177,37 +177,43 @@ impl<C: 'static> Hackshell<C> {
         self.inner.env.write().unwrap().remove(n);
     }
 
-    pub fn feed_slice(&self, cmd: &[String]) -> Result<()> {
+    pub fn feed_slice(&self, cmd: &[String]) -> Result<Option<String>> {
         if cmd.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
 
         let command = self.inner.commands.read().unwrap().get(&cmd[0]).cloned();
 
         match command {
             Some(c) => {
-                if let Err(e) = c.run(self, cmd) {
-                    if let Some(HackshellError::Exit) = e.downcast_ref::<HackshellError>() {
-                        return Err(e.into());
-                    }
+                let ret = c.run(self, cmd);
 
-                    eprintln!("{}", e);
+                match ret {
+                    Ok(output) => Ok(output),
+                    Err(e) => {
+                        // If e is HackshellError::Exit, just exit without printing anything
+                        if let Some(HackshellError::Exit) = e.downcast_ref::<HackshellError>() {
+                            return Err(e.into());
+                        }
+
+                        eprintln!("{}", e);
+                        Ok(None)
+                    }
                 }
             }
             None => {
                 eprintln!("Command not found");
+                Ok(None)
             }
         }
-
-        Ok(())
     }
 
-    pub fn feed_line(&self, line: &str) -> Result<()> {
+    pub fn feed_line(&self, line: &str) -> Result<Option<String>> {
         let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
         self.feed_slice(&cmd)
     }
 
-    pub fn run(&self) -> Result<()> {
+    pub fn run(&self) -> Result<Option<String>> {
         let mut rl = self.inner.rl.lock().unwrap();
         let readline = rl.readline(&*self.inner.prompt.read().unwrap());
 
@@ -231,6 +237,6 @@ impl<C: 'static> Hackshell<C> {
             }
         }
 
-        Ok(())
+        Ok(None)
     }
 }

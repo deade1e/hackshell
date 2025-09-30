@@ -32,7 +32,7 @@ impl Command<()> for RunTask {
             }
         });
 
-        Ok(())
+        Ok(None)
     }
 }
 

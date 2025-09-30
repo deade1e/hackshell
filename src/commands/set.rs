@@ -18,6 +18,6 @@ impl<C: 'static> Command<C> for Set {
 
         s.set_var(&cmd[1], &cmd[2]);
 
-        Ok(())
+        Ok(None)
     }
 }

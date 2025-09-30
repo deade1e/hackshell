@@ -19,7 +19,7 @@ impl Command<MyContext> for PrintSecret {
 
     fn run(&self, s: &Hackshell<MyContext>, _cmd: &[String]) -> CommandResult {
         println!("{}", s.get_ctx().secret);
-        Ok(())
+        Ok(None)
     }
 }
 

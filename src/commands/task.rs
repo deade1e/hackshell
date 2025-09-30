@@ -29,19 +29,19 @@ impl<C: 'static> Command<C> for Task {
 
         if let Some(name) = args.terminate {
             s.terminate(&name)?;
-            return Ok(());
+            return Ok(None);
         }
 
         if let Some(name) = args.wait {
             s.wait(&name)?;
-            return Ok(());
+            return Ok(None);
         }
 
         let tasks = s.get_tasks();
 
         if tasks.is_empty() {
             eprintln!("No running tasks");
-            return Ok(());
+            return Ok(None);
         }
 
         // Print a cool table header
@@ -60,6 +60,6 @@ impl<C: 'static> Command<C> for Task {
 
         eprintln!();
 
-        Ok(())
+        Ok(None)
     }
 }

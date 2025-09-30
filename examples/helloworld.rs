@@ -15,7 +15,7 @@ impl Command<()> for HelloWorld {
 
     fn run(&self, _s: &Hackshell<()>, _cmd: &[String]) -> CommandResult {
         println!("Hello, World!");
-        Ok(())
+        Ok(None)
     }
 }
 

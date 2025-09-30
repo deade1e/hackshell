@@ -16,6 +16,6 @@ impl<C: 'static> Command<C> for Env {
             println!("{}={}", v.0, v.1);
         }
 
-        Ok(())
+        Ok(None)
     }
 }

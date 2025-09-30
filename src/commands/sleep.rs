@@ -17,7 +17,7 @@ impl<C> Command<C> for Sleep {
         if cmd.len() == 2 {
             let duration = cmd[1].parse::<u64>().map_err(|e| e.to_string())?;
             sleep(Duration::from_secs(duration));
-            Ok(())
+            Ok(None)
         } else {
             Err("Invalid number of arguments".into())
         }

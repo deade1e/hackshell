@@ -18,6 +18,6 @@ impl<C: 'static> Command<C> for Unset {
 
         s.unset_var(&cmd[1]);
 
-        Ok(())
+        Ok(None)
     }
 }

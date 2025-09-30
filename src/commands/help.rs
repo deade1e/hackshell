@@ -31,6 +31,6 @@ impl<C: 'static> Command<C> for Help {
 
         eprintln!();
 
-        Ok(())
+        Ok(None)
     }
 }

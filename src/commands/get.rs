@@ -18,6 +18,6 @@ impl<C: 'static> Command<C> for Get {
 
         println!("{}", s.get_var(&cmd[1]).ok_or("Variable not found")?);
 
-        Ok(())
+        Ok(None)
     }
 }
