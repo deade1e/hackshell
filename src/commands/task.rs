@@ -33,7 +33,7 @@ impl<C: 'static> Command<C> for Task {
         }
 
         if let Some(name) = args.wait {
-            s.wait(&name)?;
+            s.join(&name)?;
             return Ok(None);
         }
 

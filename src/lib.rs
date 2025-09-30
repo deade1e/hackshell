@@ -134,13 +134,13 @@ impl<C: 'static> Hackshell<C> {
         self.inner.pool.remove(name)
     }
 
-    pub fn wait(&self, name: &str) -> HackshellResult<TaskOutput> {
-        self.inner.pool.wait(name)
+    pub fn join(&self, name: &str) -> HackshellResult<TaskOutput> {
+        self.inner.pool.join(name)
     }
 
     #[cfg(feature = "async")]
-    pub async fn wait_async(&self, name: &str) -> HackshellResult<TaskOutput> {
-        self.inner.pool.wait_async(name).await
+    pub async fn join_async(&self, name: &str) -> HackshellResult<TaskOutput> {
+        self.inner.pool.join_async(name).await
     }
 
     pub fn get_tasks(&self) -> Vec<TaskMetadata> {

@@ -6,8 +6,9 @@ use rustyline::error::ReadlineError;
 pub enum JoinError {
     Sync(Box<dyn Any + Sync + Send + 'static>),
 
+    AlreadyJoining,
     #[cfg(feature = "async")]
-    CannotWaitAsync,
+    CannotJoinAsync,
     #[cfg(feature = "async")]
     Async(tokio::task::JoinError),
 }
@@ -17,6 +18,7 @@ pub enum HackshellError {
     String(String),
     Generic(Box<dyn std::error::Error + Send + Sync + 'static>),
     CommandNotFound,
+    TaskNotFound,
     Exit,
     Interrupted,
     Eof,
@@ -71,6 +73,7 @@ impl Display for HackshellError {
             Self::String(message) => write!(f, "{}", message),
             Self::Generic(e) => write!(f, "{}", e),
             Self::CommandNotFound => write!(f, "Command not found"),
+            Self::TaskNotFound => write!(f, "Task not found"),
             Self::Exit => write!(f, "Shell exit"),
             Self::Interrupted => write!(f, "Interrupted"),
             Self::Eof => write!(f, "EOF"),
@@ -84,11 +87,12 @@ impl Display for HackshellError {
                         write!(f, "Thread panicked with non-string payload")
                     }
                 }
+                JoinError::AlreadyJoining => write!(f, "Task has been already joined"),
                 #[cfg(feature = "async")]
                 JoinError::Async(e) => write!(f, "{}", e),
                 #[cfg(feature = "async")]
-                JoinError::CannotWaitAsync => {
-                    write!(f, "Sync task cannot be waited asynchronously")
+                JoinError::CannotJoinAsync => {
+                    write!(f, "Sync task cannot be joined asynchronously")
                 }
             },
         }

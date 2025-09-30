@@ -33,13 +33,13 @@ impl Command<AppContext> for AsyncTaskCommand {
         "async-task <name> [count] - Spawn an async task using task management"
     }
 
-    fn run(&self, shell: &Hackshell<AppContext>, args: &[String]) -> CommandResult {
+    fn run(&self, shell: &Hackshell<AppContext>, args: &[&str]) -> CommandResult {
         if args.len() < 2 {
             println!("Usage: async-task <name> [count]");
             return Ok(None);
         }
 
-        let task_name = args[1].clone();
+        let task_name = args[1].to_string();
         let count = args
             .get(2)
             .and_then(|s| s.parse::<u32>().ok())
@@ -88,7 +88,7 @@ impl Command<AppContext> for CheckProgressCommand {
         "progress - Check progress of async tasks"
     }
 
-    fn run(&self, shell: &Hackshell<AppContext>, _args: &[String]) -> CommandResult {
+    fn run(&self, shell: &Hackshell<AppContext>, _args: &[&str]) -> CommandResult {
         let ctx = shell.get_ctx();
         let messages = ctx.messages.lock().unwrap();
 

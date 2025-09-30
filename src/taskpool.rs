@@ -1,4 +1,4 @@
-use crate::error::{HackshellError, HackshellResult};
+use crate::error::{HackshellError, HackshellResult, JoinError};
 #[cfg(feature = "async")]
 use std::pin::Pin;
 use std::{
@@ -27,21 +27,21 @@ struct SyncTask {
     /// In Rust, due to memory safety, it's not possible to stop normal threads, as they have no
     /// yelding points.
     run: Mutex<Option<Arc<AtomicBool>>>,
-    wait_handle: Mutex<Option<JoinHandle<TaskOutput>>>,
+    join_handle: Mutex<Option<JoinHandle<TaskOutput>>>,
 }
 
 #[cfg(feature = "async")]
 struct AsyncTask {
     meta: TaskMetadata,
-    wait_handle: Mutex<Option<tokio::task::JoinHandle<TaskOutput>>>,
+    join_handle: Mutex<Option<tokio::task::JoinHandle<TaskOutput>>>,
 }
 
 trait Task {
     fn meta(&self) -> TaskMetadata;
     fn kill(&self) -> HackshellResult<()>;
-    fn wait(&self) -> HackshellResult<TaskOutput>;
+    fn join(&self) -> HackshellResult<TaskOutput>;
     #[cfg(feature = "async")]
-    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>>;
+    fn join_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>>;
 }
 
 #[derive(Default)]
@@ -68,13 +68,13 @@ impl Task for SyncTask {
         Ok(())
     }
 
-    fn wait(&self) -> HackshellResult<TaskOutput> {
+    fn join(&self) -> HackshellResult<TaskOutput> {
         let wh = self
-            .wait_handle
+            .join_handle
             .lock()
             .unwrap()
             .take()
-            .ok_or("Can't take wait handle")?;
+            .ok_or(HackshellError::JoinError(JoinError::AlreadyJoining))?;
 
         wh.join().map_err(|e| {
             HackshellError::JoinError(crate::error::JoinError::Sync(Box::new(Mutex::new(e))))
@@ -82,10 +82,10 @@ impl Task for SyncTask {
     }
 
     #[cfg(feature = "async")]
-    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>> {
+    fn join_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>> {
         Box::pin(async {
             Err(HackshellError::JoinError(
-                crate::error::JoinError::CannotWaitAsync,
+                crate::error::JoinError::CannotJoinAsync,
             ))
         })
     }
@@ -98,20 +98,20 @@ impl Task for AsyncTask {
     }
 
     fn kill(&self) -> HackshellResult<()> {
-        if let Some(handle) = self.wait_handle.lock().unwrap().take() {
+        if let Some(handle) = self.join_handle.lock().unwrap().take() {
             handle.abort();
         }
 
         Ok(())
     }
 
-    fn wait(&self) -> HackshellResult<TaskOutput> {
+    fn join(&self) -> HackshellResult<TaskOutput> {
         let wh = self
-            .wait_handle
+            .join_handle
             .lock()
             .unwrap()
             .take()
-            .ok_or("Can't take wait handle")?;
+            .ok_or(HackshellError::JoinError(JoinError::AlreadyJoining))?;
 
         let handle = tokio::runtime::Handle::try_current().map_err(|e| e.to_string())?;
 
@@ -122,13 +122,13 @@ impl Task for AsyncTask {
     }
 
     #[cfg(feature = "async")]
-    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>> {
+    fn join_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>> {
         let wh = self
-            .wait_handle
+            .join_handle
             .lock()
             .unwrap()
             .take()
-            .ok_or("Can't take wait handle");
+            .ok_or(HackshellError::JoinError(JoinError::AlreadyJoining));
 
         match wh {
             Ok(wh) => Box::pin(async move {
@@ -175,7 +175,7 @@ impl TaskPool {
                 id: id,
             },
             run: Mutex::new(Some(run)),
-            wait_handle: Mutex::new(Some(handle)),
+            join_handle: Mutex::new(Some(handle)),
         };
 
         let task = Arc::new(task);
@@ -192,12 +192,11 @@ impl TaskPool {
         let self_ref = self.clone();
         let name = name.to_string();
 
-        let handle: tokio::task::JoinHandle<Option<Box<dyn std::any::Any + Send + Sync>>> =
-            tokio::spawn(async move {
-                let res = func.await;
-                let _ = self_ref.remove_by_id(id);
-                res
-            });
+        let handle: tokio::task::JoinHandle<TaskOutput> = tokio::spawn(async move {
+            let res = func.await;
+            let _ = self_ref.remove_by_id(id);
+            res
+        });
 
         let task = AsyncTask {
             meta: TaskMetadata {
@@ -205,7 +204,7 @@ impl TaskPool {
                 started: chrono::Utc::now(),
                 id,
             },
-            wait_handle: Mutex::new(Some(handle)),
+            join_handle: Mutex::new(Some(handle)),
         };
 
         let task = Arc::new(task);
@@ -220,7 +219,7 @@ impl TaskPool {
             .iter()
             .find(|(_, v)| v.meta().id == id)
             .map(|(k, _)| k.clone())
-            .ok_or("Cannot find the task")?;
+            .ok_or(HackshellError::TaskNotFound)?;
 
         let (_, task) = tasks.remove_entry(&key).unwrap();
 
@@ -236,23 +235,26 @@ impl TaskPool {
             .write()
             .unwrap()
             .remove_entry(name)
-            .ok_or("Task not found")?;
+            .ok_or(HackshellError::TaskNotFound)?;
 
         task.kill()?;
 
         Ok(())
     }
 
-    pub fn wait(&self, name: &str) -> HackshellResult<TaskOutput> {
+    pub fn join(&self, name: &str) -> HackshellResult<TaskOutput> {
         let tasks = self.inner.tasks.read().unwrap();
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
 
-            match task.wait() {
+            match task.join() {
                 // If Ok() the task finished successfully and already removed itself
                 Ok(ret) => Ok(ret),
                 Err(e) => {
-                    let _ = self.remove_by_id(task.meta().id);
+                    if !matches!(e, HackshellError::JoinError(JoinError::AlreadyJoining)) {
+                        let _ = self.remove_by_id(task.meta().id);
+                    }
+
                     Err(e)
                 }
             }
@@ -262,16 +264,18 @@ impl TaskPool {
     }
 
     #[cfg(feature = "async")]
-    pub async fn wait_async(&self, name: &str) -> HackshellResult<TaskOutput> {
+    pub async fn join_async(&self, name: &str) -> HackshellResult<TaskOutput> {
         let tasks = self.inner.tasks.read().unwrap();
 
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
 
-            match task.wait_async().await {
+            match task.join_async().await {
                 Ok(ret) => Ok(ret),
                 Err(e) => {
-                    let _ = self.remove_by_id(task.meta().id);
+                    if !matches!(e, HackshellError::JoinError(JoinError::AlreadyJoining)) {
+                        let _ = self.remove_by_id(task.meta().id);
+                    }
                     Err(e)
                 }
             }

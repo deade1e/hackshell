@@ -81,19 +81,19 @@ fn test_remove_nonexistent_task() {
 }
 
 #[test]
-fn test_wait_for_task() {
+fn test_join_for_task() {
     let pool = TaskPool::default();
     let completed = Arc::new(AtomicBool::new(false));
     let completed_clone = completed.clone();
 
-    pool.spawn("wait_task", move |_run| {
+    pool.spawn("join_task", move |_run| {
         thread::sleep(Duration::from_millis(100));
         completed_clone.store(true, Ordering::Relaxed);
         None
     });
 
     // Wait should block until task completes
-    assert!(pool.wait("wait_task").is_ok());
+    assert!(pool.join("join_task").is_ok());
     assert!(completed.load(Ordering::Relaxed));
 
     // Task should be automatically removed after completion
@@ -102,10 +102,10 @@ fn test_wait_for_task() {
 }
 
 #[test]
-fn test_wait_for_nonexistent_task() {
+fn test_join_for_nonexistent_task() {
     let pool = TaskPool::default();
     // Waiting for a nonexistent task should return Ok (no-op)
-    assert!(pool.wait("nonexistent").is_ok());
+    assert!(pool.join("nonexistent").is_ok());
 }
 
 #[test]
@@ -267,19 +267,19 @@ mod async_tests {
     }
 
     #[tokio::test]
-    async fn test_wait_async_task() {
+    async fn test_join_async_task() {
         let pool = TaskPool::default();
         let completed = Arc::new(AtomicBool::new(false));
         let completed_clone = completed.clone();
 
-        pool.spawn_async("wait_async", async move {
+        pool.spawn_async("join_async", async move {
             tokio::time::sleep(Duration::from_millis(100)).await;
             completed_clone.store(true, Ordering::Relaxed);
             None
         });
 
         // Wait for the async task from sync context
-        assert!(pool.wait_async("wait_async").await.is_ok());
+        assert!(pool.join_async("join_async").await.is_ok());
         assert!(completed.load(Ordering::Relaxed));
     }
 
@@ -317,8 +317,8 @@ mod async_tests {
             None
         });
 
-        assert!(pool.wait("sync_task").is_ok());
-        assert!(pool.wait_async("async_task").await.is_ok());
+        assert!(pool.join("sync_task").is_ok());
+        assert!(pool.join_async("async_task").await.is_ok());
 
         assert_eq!(sync_counter.load(Ordering::Relaxed), 1);
         assert_eq!(async_counter.load(Ordering::Relaxed), 1);
