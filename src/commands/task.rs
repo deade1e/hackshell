@@ -24,7 +24,7 @@ impl<C: 'static> Command<C> for Task {
         "Lists and manages tasks"
     }
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> CommandResult {
+    fn run(&self, s: &Hackshell<C>, cmd: &[&str]) -> CommandResult {
         let args = Cmd::try_parse_from(cmd)?;
 
         if let Some(name) = args.terminate {

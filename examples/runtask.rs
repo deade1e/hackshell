@@ -13,7 +13,7 @@ impl Command<()> for RunTask {
         "This is a non-default command installed by the Hackshell consumer. It simply spawns a task that lasts n seconds in the background."
     }
 
-    fn run(&self, s: &Hackshell<()>, cmd: &[String]) -> CommandResult {
+    fn run(&self, s: &Hackshell<()>, cmd: &[&str]) -> CommandResult {
         if cmd.len() < 2 {
             return Err("Syntax: runtask <nsecs>".into());
         }

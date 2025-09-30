@@ -24,7 +24,7 @@ pub trait Command<C>: Send + Sync + 'static {
 
     fn help(&self) -> &'static str;
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> CommandResult;
+    fn run(&self, s: &Hackshell<C>, cmd: &[&str]) -> CommandResult;
 }
 
 pub type CommandResult =
@@ -182,12 +182,12 @@ impl<C: 'static> Hackshell<C> {
         self.inner.env.write().unwrap().remove(n);
     }
 
-    pub fn feed_slice(&self, cmd: &[String]) -> HackshellResult<Option<String>> {
+    pub fn feed_slice(&self, cmd: &[&str]) -> HackshellResult<Option<String>> {
         if cmd.is_empty() {
             return Ok(None);
         }
 
-        let command = self.inner.commands.read().unwrap().get(&cmd[0]).cloned();
+        let command = self.inner.commands.read().unwrap().get(cmd[0]).cloned();
 
         match command {
             Some(c) => {
@@ -199,7 +199,8 @@ impl<C: 'static> Hackshell<C> {
 
     pub fn feed_line(&self, line: &str) -> HackshellResult<Option<String>> {
         let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
-        self.feed_slice(&cmd)
+        let cmd_refs: Vec<&str> = cmd.iter().map(|s| s.as_str()).collect();
+        self.feed_slice(&cmd_refs)
     }
 
     pub fn run(&self) -> HackshellResult<Option<String>> {

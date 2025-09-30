@@ -13,7 +13,7 @@ impl<C: 'static> Command<C> for Help {
         "Displays this message"
     }
 
-    fn run(&self, s: &Hackshell<C>, _: &[String]) -> CommandResult {
+    fn run(&self, s: &Hackshell<C>, _: &[&str]) -> CommandResult {
         let commands = s.get_commands();
         let mut printed = vec![];
 

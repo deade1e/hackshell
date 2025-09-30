@@ -1,6 +1,6 @@
 [package]
 name = "hackshell"
-version = "0.3.10"
+version = "0.3.11"
 authors = ["Francesco Pompo' <f@francesco.cc>"]
 description = "Lightweight, customizable shell framework"
 repository = "https://github.com/deade1e/hackshell"

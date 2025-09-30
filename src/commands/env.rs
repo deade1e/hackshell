@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Env {
         "Prints all environment"
     }
 
-    fn run(&self, s: &Hackshell<C>, _: &[String]) -> CommandResult {
+    fn run(&self, s: &Hackshell<C>, _: &[&str]) -> CommandResult {
         for v in s.env() {
             println!("{}={}", v.0, v.1);
         }

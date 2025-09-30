@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Unset {
         "Unsets an environment variable"
     }
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> CommandResult {
+    fn run(&self, s: &Hackshell<C>, cmd: &[&str]) -> CommandResult {
         if cmd.len() != 2 {
             return Err("Syntax: unset <name>".into());
         }

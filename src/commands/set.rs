@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Set {
         "Sets an environment variable. Syntax: set <name> <value>"
     }
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[String]) -> CommandResult {
+    fn run(&self, s: &Hackshell<C>, cmd: &[&str]) -> CommandResult {
         if cmd.len() != 3 {
             return Err("Syntax: set <name> <value>".into());
         }
