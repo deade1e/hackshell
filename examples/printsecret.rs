@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use hackshell::{Command, CommandResult, Hackshell};
+use hackshell::{Command, CommandResult, Hackshell, error::HackshellError};
 
 struct MyContext {
     secret: String,
@@ -33,6 +33,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     s.add_command(PrintSecret {});
 
     loop {
-        s.run()?;
+        match s.run() {
+            Ok(_) => {}
+            Err(e) => {
+                if matches!(e, HackshellError::Eof)
+                    || matches!(e, HackshellError::Interrupted)
+                    || matches!(e, HackshellError::Exit)
+                {
+                    break;
+                }
+
+                eprintln!("Error: {}", e);
+            }
+        }
     }
+
+    Ok(())
 }

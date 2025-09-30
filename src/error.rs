@@ -16,6 +16,7 @@ pub enum JoinError {
 pub enum HackshellError {
     String(String),
     Generic(Box<dyn std::error::Error + Send + Sync + 'static>),
+    CommandNotFound,
     Exit,
     Interrupted,
     Eof,
@@ -69,6 +70,7 @@ impl Display for HackshellError {
             Self::OtherReadline(message) => write!(f, "Readline error: {}", message),
             Self::String(message) => write!(f, "{}", message),
             Self::Generic(e) => write!(f, "{}", e),
+            Self::CommandNotFound => write!(f, "Command not found"),
             Self::Exit => write!(f, "Shell exit"),
             Self::Interrupted => write!(f, "Interrupted"),
             Self::Eof => write!(f, "EOF"),

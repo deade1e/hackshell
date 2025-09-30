@@ -186,25 +186,9 @@ impl<C: 'static> Hackshell<C> {
 
         match command {
             Some(c) => {
-                let ret = c.run(self, cmd);
-
-                match ret {
-                    Ok(output) => Ok(output),
-                    Err(e) => {
-                        // If e is HackshellError::Exit, just exit without printing anything
-                        if let Some(HackshellError::Exit) = e.downcast_ref::<HackshellError>() {
-                            return Err(e.into());
-                        }
-
-                        eprintln!("{}", e);
-                        Ok(None)
-                    }
-                }
+                return Ok(c.run(self, cmd)?);
             }
-            None => {
-                eprintln!("Command not found");
-                Ok(None)
-            }
+            None => Err(HackshellError::CommandNotFound),
         }
     }
 
@@ -234,9 +218,8 @@ impl<C: 'static> Hackshell<C> {
 
             Err(e) => {
                 eprintln!("{}", e);
+                return Err(e.into());
             }
         }
-
-        Ok(None)
     }
 }

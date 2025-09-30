@@ -136,6 +136,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     println!("Error: {}", e);
                 }
+                Err(e) => {
+                    eprintln!("{e}");
+                }
             }
         }
     });
