@@ -95,4 +95,4 @@ impl Display for HackshellError {
 
 impl std::error::Error for HackshellError {}
 
-pub type Result<T> = std::result::Result<T, HackshellError>;
+pub type HackshellResult<T> = std::result::Result<T, HackshellError>;

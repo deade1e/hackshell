@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, RwLock, atomic::AtomicBool},
 };
 
-use crate::error::{HackshellError, Result};
+use crate::error::{HackshellError, HackshellResult};
 
 mod commands;
 pub mod error;
@@ -50,7 +50,7 @@ impl<C> Clone for Hackshell<C> {
 }
 
 impl<C: 'static> Hackshell<C> {
-    pub fn new(ctx: C, prompt: &str) -> Result<Self> {
+    pub fn new(ctx: C, prompt: &str) -> HackshellResult<Self> {
         let rl = DefaultEditor::new()?;
 
         let s = Self {
@@ -77,7 +77,7 @@ impl<C: 'static> Hackshell<C> {
         Ok(s)
     }
 
-    pub fn set_history_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+    pub fn set_history_file<P: AsRef<Path>>(&self, path: P) -> HackshellResult<()> {
         let mut hf = self.inner.history_file.write().unwrap();
         *hf = Some(path.as_ref().to_path_buf());
 
@@ -125,16 +125,16 @@ impl<C: 'static> Hackshell<C> {
         self.inner.pool.spawn_async(name, func);
     }
 
-    pub fn terminate(&self, name: &str) -> Result<()> {
+    pub fn terminate(&self, name: &str) -> HackshellResult<()> {
         self.inner.pool.remove(name)
     }
 
-    pub fn wait(&self, name: &str) -> Result<()> {
+    pub fn wait(&self, name: &str) -> HackshellResult<()> {
         self.inner.pool.wait(name)
     }
 
     #[cfg(feature = "async")]
-    pub async fn wait_async(&self, name: &str) -> Result<()> {
+    pub async fn wait_async(&self, name: &str) -> HackshellResult<()> {
         self.inner.pool.wait_async(name).await
     }
 
@@ -177,7 +177,7 @@ impl<C: 'static> Hackshell<C> {
         self.inner.env.write().unwrap().remove(n);
     }
 
-    pub fn feed_slice(&self, cmd: &[String]) -> Result<Option<String>> {
+    pub fn feed_slice(&self, cmd: &[String]) -> HackshellResult<Option<String>> {
         if cmd.is_empty() {
             return Ok(None);
         }
@@ -208,12 +208,12 @@ impl<C: 'static> Hackshell<C> {
         }
     }
 
-    pub fn feed_line(&self, line: &str) -> Result<Option<String>> {
+    pub fn feed_line(&self, line: &str) -> HackshellResult<Option<String>> {
         let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
         self.feed_slice(&cmd)
     }
 
-    pub fn run(&self) -> Result<Option<String>> {
+    pub fn run(&self) -> HackshellResult<Option<String>> {
         let mut rl = self.inner.rl.lock().unwrap();
         let readline = rl.readline(&*self.inner.prompt.read().unwrap());
 

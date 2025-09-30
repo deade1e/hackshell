@@ -1,4 +1,4 @@
-use crate::error::{HackshellError, Result};
+use crate::error::{HackshellError, HackshellResult};
 #[cfg(feature = "async")]
 use std::pin::Pin;
 use std::{
@@ -35,10 +35,10 @@ struct AsyncTask {
 
 trait Task {
     fn meta(&self) -> TaskMetadata;
-    fn kill(&self) -> Result<()>;
-    fn wait(&self) -> Result<()>;
+    fn kill(&self) -> HackshellResult<()>;
+    fn wait(&self) -> HackshellResult<()>;
     #[cfg(feature = "async")]
-    fn wait_async(&self) -> Pin<Box<dyn Future<Output = Result<()>>>>;
+    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<()>>>>;
 }
 
 #[derive(Default)]
@@ -57,7 +57,7 @@ impl Task for SyncTask {
         self.meta.clone()
     }
 
-    fn kill(&self) -> Result<()> {
+    fn kill(&self) -> HackshellResult<()> {
         if let Some(run) = self.run.lock().unwrap().take() {
             // Signaling to a sync thread, that has no yelding points, to stop.
             run.store(false, Ordering::Relaxed);
@@ -65,7 +65,7 @@ impl Task for SyncTask {
         Ok(())
     }
 
-    fn wait(&self) -> Result<()> {
+    fn wait(&self) -> HackshellResult<()> {
         let wh = self
             .wait_handle
             .lock()
@@ -79,7 +79,7 @@ impl Task for SyncTask {
     }
 
     #[cfg(feature = "async")]
-    fn wait_async(&self) -> Pin<Box<dyn Future<Output = Result<()>>>> {
+    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<()>>>> {
         Box::pin(async {
             Err(HackshellError::JoinError(
                 crate::error::JoinError::CannotWaitAsync,
@@ -94,7 +94,7 @@ impl Task for AsyncTask {
         self.meta.clone()
     }
 
-    fn kill(&self) -> Result<()> {
+    fn kill(&self) -> HackshellResult<()> {
         if let Some(handle) = self.wait_handle.lock().unwrap().take() {
             handle.abort();
         }
@@ -102,7 +102,7 @@ impl Task for AsyncTask {
         Ok(())
     }
 
-    fn wait(&self) -> Result<()> {
+    fn wait(&self) -> HackshellResult<()> {
         let wh = self
             .wait_handle
             .lock()
@@ -119,7 +119,7 @@ impl Task for AsyncTask {
     }
 
     #[cfg(feature = "async")]
-    fn wait_async(&self) -> Pin<Box<dyn Future<Output = Result<()>>>> {
+    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<()>>>> {
         let wh = self
             .wait_handle
             .lock()
@@ -205,7 +205,7 @@ impl TaskPool {
         self.inner.tasks.write().unwrap().insert(name, task);
     }
 
-    fn remove_by_id(&self, id: u64) -> Result<()> {
+    fn remove_by_id(&self, id: u64) -> HackshellResult<()> {
         let mut tasks = self.inner.tasks.write().unwrap();
 
         let key = tasks
@@ -221,7 +221,7 @@ impl TaskPool {
         Ok(())
     }
 
-    pub fn remove(&self, name: &str) -> Result<()> {
+    pub fn remove(&self, name: &str) -> HackshellResult<()> {
         let (_, task) = self
             .inner
             .tasks
@@ -235,7 +235,7 @@ impl TaskPool {
         Ok(())
     }
 
-    pub fn wait(&self, name: &str) -> Result<()> {
+    pub fn wait(&self, name: &str) -> HackshellResult<()> {
         let tasks = self.inner.tasks.read().unwrap();
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
@@ -253,7 +253,7 @@ impl TaskPool {
     }
 
     #[cfg(feature = "async")]
-    pub async fn wait_async(&self, name: &str) -> Result<()> {
+    pub async fn wait_async(&self, name: &str) -> HackshellResult<()> {
         let tasks = self.inner.tasks.read().unwrap();
 
         if let Some(task) = tasks.get(name).cloned() {
