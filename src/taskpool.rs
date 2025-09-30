@@ -18,6 +18,8 @@ pub struct TaskMetadata {
     pub id: u64,
 }
 
+pub type TaskOutput = Option<Box<dyn Any + Send + Sync>>;
+
 struct SyncTask {
     meta: TaskMetadata,
 
@@ -25,23 +27,21 @@ struct SyncTask {
     /// In Rust, due to memory safety, it's not possible to stop normal threads, as they have no
     /// yelding points.
     run: Mutex<Option<Arc<AtomicBool>>>,
-    wait_handle: Mutex<Option<JoinHandle<Option<Box<dyn Any + Send + Sync>>>>>,
+    wait_handle: Mutex<Option<JoinHandle<TaskOutput>>>,
 }
 
 #[cfg(feature = "async")]
 struct AsyncTask {
     meta: TaskMetadata,
-    wait_handle: Mutex<Option<tokio::task::JoinHandle<Option<Box<dyn Any + Send + Sync>>>>>,
+    wait_handle: Mutex<Option<tokio::task::JoinHandle<TaskOutput>>>,
 }
 
 trait Task {
     fn meta(&self) -> TaskMetadata;
     fn kill(&self) -> HackshellResult<()>;
-    fn wait(&self) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>>;
+    fn wait(&self) -> HackshellResult<TaskOutput>;
     #[cfg(feature = "async")]
-    fn wait_async(
-        &self,
-    ) -> Pin<Box<dyn Future<Output = HackshellResult<Option<Box<dyn Any + Send + Sync>>>>>>;
+    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>>;
 }
 
 #[derive(Default)]
@@ -68,7 +68,7 @@ impl Task for SyncTask {
         Ok(())
     }
 
-    fn wait(&self) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
+    fn wait(&self) -> HackshellResult<TaskOutput> {
         let wh = self
             .wait_handle
             .lock()
@@ -82,9 +82,7 @@ impl Task for SyncTask {
     }
 
     #[cfg(feature = "async")]
-    fn wait_async(
-        &self,
-    ) -> Pin<Box<dyn Future<Output = HackshellResult<Option<Box<dyn Any + Send + Sync>>>>>> {
+    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>> {
         Box::pin(async {
             Err(HackshellError::JoinError(
                 crate::error::JoinError::CannotWaitAsync,
@@ -107,7 +105,7 @@ impl Task for AsyncTask {
         Ok(())
     }
 
-    fn wait(&self) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
+    fn wait(&self) -> HackshellResult<TaskOutput> {
         let wh = self
             .wait_handle
             .lock()
@@ -124,9 +122,7 @@ impl Task for AsyncTask {
     }
 
     #[cfg(feature = "async")]
-    fn wait_async(
-        &self,
-    ) -> Pin<Box<dyn Future<Output = HackshellResult<Option<Box<dyn Any + Send + Sync>>>>>> {
+    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>> {
         let wh = self
             .wait_handle
             .lock()
@@ -152,7 +148,7 @@ impl TaskPool {
 
     pub fn spawn<F>(&self, name: &str, func: F)
     where
-        F: FnOnce(Arc<AtomicBool>) -> Option<Box<dyn Any + Send + Sync>> + Send + 'static,
+        F: FnOnce(Arc<AtomicBool>) -> TaskOutput + Send + 'static,
     {
         let run = Arc::new(AtomicBool::new(true));
         let run_ref = run.clone();
@@ -189,7 +185,7 @@ impl TaskPool {
     #[cfg(feature = "async")]
     pub fn spawn_async<F>(&self, name: &str, func: F)
     where
-        F: Future<Output = Option<Box<dyn Any + Send + Sync>>> + Send + Sync + 'static,
+        F: Future<Output = TaskOutput> + Send + Sync + 'static,
     {
         let _ = self.remove(&name);
         let id = self.gen_task_id();
@@ -247,7 +243,7 @@ impl TaskPool {
         Ok(())
     }
 
-    pub fn wait(&self, name: &str) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
+    pub fn wait(&self, name: &str) -> HackshellResult<TaskOutput> {
         let tasks = self.inner.tasks.read().unwrap();
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
@@ -265,10 +261,7 @@ impl TaskPool {
     }
 
     #[cfg(feature = "async")]
-    pub async fn wait_async(
-        &self,
-        name: &str,
-    ) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
+    pub async fn wait_async(&self, name: &str) -> HackshellResult<TaskOutput> {
         let tasks = self.inner.tasks.read().unwrap();
 
         if let Some(task) = tasks.get(name).cloned() {

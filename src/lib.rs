@@ -5,7 +5,10 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, RwLock, atomic::AtomicBool},
 };
 
-use crate::error::{HackshellError, HackshellResult};
+use crate::{
+    error::{HackshellError, HackshellResult},
+    taskpool::TaskOutput,
+};
 
 mod commands;
 pub mod error;
@@ -115,7 +118,7 @@ impl<C: 'static> Hackshell<C> {
 
     pub fn spawn<F>(&self, name: &str, func: F)
     where
-        F: FnOnce(Arc<AtomicBool>) -> Option<Box<dyn Any + Send + Sync>> + Send + 'static,
+        F: FnOnce(Arc<AtomicBool>) -> TaskOutput + Send + 'static,
     {
         self.inner.pool.spawn(name, func);
     }
@@ -123,7 +126,7 @@ impl<C: 'static> Hackshell<C> {
     #[cfg(feature = "async")]
     pub fn spawn_async<F>(&self, name: &str, func: F)
     where
-        F: Future<Output = Option<Box<dyn Any + Send + Sync>>> + Send + Sync + 'static,
+        F: Future<Output = TaskOutput> + Send + Sync + 'static,
     {
         self.inner.pool.spawn_async(name, func);
     }
@@ -132,15 +135,12 @@ impl<C: 'static> Hackshell<C> {
         self.inner.pool.remove(name)
     }
 
-    pub fn wait(&self, name: &str) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
+    pub fn wait(&self, name: &str) -> HackshellResult<TaskOutput> {
         self.inner.pool.wait(name)
     }
 
     #[cfg(feature = "async")]
-    pub async fn wait_async(
-        &self,
-        name: &str,
-    ) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
+    pub async fn wait_async(&self, name: &str) -> HackshellResult<TaskOutput> {
         self.inner.pool.wait_async(name).await
     }
 
