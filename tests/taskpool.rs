@@ -16,6 +16,7 @@ fn test_spawn_and_execute_task() {
             executed_clone.store(true, Ordering::Relaxed);
             break;
         }
+        None
     });
 
     thread::sleep(Duration::from_millis(50));
@@ -31,6 +32,7 @@ fn test_task_metadata() {
         while run.load(Ordering::Relaxed) {
             thread::sleep(Duration::from_millis(10));
         }
+        None
     });
 
     let tasks = pool.get_all();
@@ -54,6 +56,7 @@ fn test_remove_task() {
             thread::sleep(Duration::from_millis(10));
         }
         still_running_clone.store(false, Ordering::Relaxed);
+        None
     });
 
     thread::sleep(Duration::from_millis(50));
@@ -86,6 +89,7 @@ fn test_wait_for_task() {
     pool.spawn("wait_task", move |_run| {
         thread::sleep(Duration::from_millis(100));
         completed_clone.store(true, Ordering::Relaxed);
+        None
     });
 
     // Wait should block until task completes
@@ -118,6 +122,7 @@ fn test_spawn_with_same_name_kills_previous() {
             thread::sleep(Duration::from_millis(10));
         }
         first_task_running_clone.store(false, Ordering::Relaxed);
+        None
     });
 
     thread::sleep(Duration::from_millis(50));
@@ -127,6 +132,7 @@ fn test_spawn_with_same_name_kills_previous() {
     pool.spawn("duplicate_name", move |_run| {
         second_task_started_clone.store(true, Ordering::Relaxed);
         thread::sleep(Duration::from_millis(50));
+        None
     });
 
     thread::sleep(Duration::from_millis(100));
@@ -147,6 +153,7 @@ fn test_multiple_tasks() {
         pool.spawn(&format!("task_{}", i), move |_run| {
             counter_clone.fetch_add(1, Ordering::Relaxed);
             thread::sleep(Duration::from_millis(50));
+            None
         });
     }
 
@@ -166,6 +173,7 @@ fn test_auto_removal_on_completion() {
 
     pool.spawn("auto_remove", |_run| {
         // Task completes immediately
+        None
     });
 
     thread::sleep(Duration::from_millis(100));
@@ -182,6 +190,7 @@ fn test_clone_pool() {
 
     pool1.spawn("task_from_pool1", |_run| {
         thread::sleep(Duration::from_millis(100));
+        None
     });
 
     // Should be able to see the task from cloned pool
@@ -211,6 +220,7 @@ mod async_tests {
         pool.spawn_async("async_task", async move {
             tokio::time::sleep(Duration::from_millis(50)).await;
             executed_clone.store(true, Ordering::Relaxed);
+            None
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -223,6 +233,7 @@ mod async_tests {
 
         pool.spawn_async("async_metadata_test", async {
             tokio::time::sleep(Duration::from_millis(100)).await;
+            None
         });
 
         let tasks = pool.get_all();
@@ -241,6 +252,7 @@ mod async_tests {
         pool.spawn_async("killable_async", async move {
             tokio::time::sleep(Duration::from_secs(10)).await;
             still_running_clone.store(false, Ordering::Relaxed);
+            None
         });
 
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -263,6 +275,7 @@ mod async_tests {
         pool.spawn_async("wait_async", async move {
             tokio::time::sleep(Duration::from_millis(100)).await;
             completed_clone.store(true, Ordering::Relaxed);
+            None
         });
 
         // Wait for the async task from sync context
@@ -276,6 +289,7 @@ mod async_tests {
 
         pool.spawn_async("async_auto_remove", async {
             tokio::time::sleep(Duration::from_millis(50)).await;
+            None
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -294,11 +308,13 @@ mod async_tests {
         let sync_counter_clone = sync_counter.clone();
         pool.spawn("sync_task", move |_run| {
             sync_counter_clone.fetch_add(1, Ordering::Relaxed);
+            None
         });
 
         let async_counter_clone = async_counter.clone();
         pool.spawn_async("async_task", async move {
             async_counter_clone.fetch_add(1, Ordering::Relaxed);
+            None
         });
 
         assert!(pool.wait("sync_task").is_ok());
@@ -324,6 +340,7 @@ fn test_concurrent_access() {
         for i in 0..10 {
             pool1.spawn(&format!("thread1_task_{}", i), |_run| {
                 thread::sleep(Duration::from_millis(10));
+                None
             });
         }
     });
@@ -335,6 +352,7 @@ fn test_concurrent_access() {
         for i in 0..10 {
             pool2.spawn(&format!("thread2_task_{}", i), |_run| {
                 thread::sleep(Duration::from_millis(10));
+                None
             });
         }
     });

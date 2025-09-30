@@ -30,6 +30,8 @@ impl Command<()> for RunTask {
                 sleep(Duration::from_secs(n));
                 c -= 1;
             }
+
+            None
         });
 
         Ok(None)

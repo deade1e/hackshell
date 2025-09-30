@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, RwLock, atomic::AtomicBool},
@@ -112,15 +113,17 @@ impl<C: 'static> Hackshell<C> {
         self.inner.ctx.lock().unwrap()
     }
 
-    pub fn spawn<F: FnOnce(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
+    pub fn spawn<F>(&self, name: &str, func: F)
+    where
+        F: FnOnce(Arc<AtomicBool>) -> Option<Box<dyn Any + Send + Sync>> + Send + 'static,
+    {
         self.inner.pool.spawn(name, func);
     }
 
     #[cfg(feature = "async")]
     pub fn spawn_async<F>(&self, name: &str, func: F)
     where
-        F: Future + Send + Sync + 'static,
-        F::Output: Send + Sync,
+        F: Future<Output = Option<Box<dyn Any + Send + Sync>>> + Send + Sync + 'static,
     {
         self.inner.pool.spawn_async(name, func);
     }
@@ -129,12 +132,15 @@ impl<C: 'static> Hackshell<C> {
         self.inner.pool.remove(name)
     }
 
-    pub fn wait(&self, name: &str) -> HackshellResult<()> {
+    pub fn wait(&self, name: &str) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
         self.inner.pool.wait(name)
     }
 
     #[cfg(feature = "async")]
-    pub async fn wait_async(&self, name: &str) -> HackshellResult<()> {
+    pub async fn wait_async(
+        &self,
+        name: &str,
+    ) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
         self.inner.pool.wait_async(name).await
     }
 

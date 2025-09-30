@@ -36,7 +36,7 @@ impl Command<AppContext> for AsyncTaskCommand {
     fn run(&self, shell: &Hackshell<AppContext>, args: &[String]) -> CommandResult {
         if args.len() < 2 {
             println!("Usage: async-task <name> [count]");
-            return Ok(());
+            return Ok(None);
         }
 
         let task_name = args[1].clone();
@@ -67,11 +67,12 @@ impl Command<AppContext> for AsyncTaskCommand {
             }
 
             println!("Task '{}' finished counting to {}!", task_name_clone, count);
+            None
         });
 
         println!("Spawned async task: '{}'", task_name);
 
-        Ok(())
+        Ok(None)
     }
 }
 
@@ -101,7 +102,7 @@ impl Command<AppContext> for CheckProgressCommand {
             }
         }
 
-        Ok(())
+        Ok(None)
     }
 }
 
@@ -135,9 +136,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     println!("Error: {}", e);
-                }
-                Err(e) => {
-                    eprintln!("{e}");
                 }
             }
         }

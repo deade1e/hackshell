@@ -2,6 +2,7 @@ use crate::error::{HackshellError, HackshellResult};
 #[cfg(feature = "async")]
 use std::pin::Pin;
 use std::{
+    any::Any,
     collections::HashMap,
     sync::{
         Arc, Mutex, RwLock,
@@ -24,21 +25,23 @@ struct SyncTask {
     /// In Rust, due to memory safety, it's not possible to stop normal threads, as they have no
     /// yelding points.
     run: Mutex<Option<Arc<AtomicBool>>>,
-    wait_handle: Mutex<Option<JoinHandle<()>>>,
+    wait_handle: Mutex<Option<JoinHandle<Option<Box<dyn Any + Send + Sync>>>>>,
 }
 
 #[cfg(feature = "async")]
 struct AsyncTask {
     meta: TaskMetadata,
-    wait_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    wait_handle: Mutex<Option<tokio::task::JoinHandle<Option<Box<dyn Any + Send + Sync>>>>>,
 }
 
 trait Task {
     fn meta(&self) -> TaskMetadata;
     fn kill(&self) -> HackshellResult<()>;
-    fn wait(&self) -> HackshellResult<()>;
+    fn wait(&self) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>>;
     #[cfg(feature = "async")]
-    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<()>>>>;
+    fn wait_async(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = HackshellResult<Option<Box<dyn Any + Send + Sync>>>>>>;
 }
 
 #[derive(Default)]
@@ -65,7 +68,7 @@ impl Task for SyncTask {
         Ok(())
     }
 
-    fn wait(&self) -> HackshellResult<()> {
+    fn wait(&self) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
         let wh = self
             .wait_handle
             .lock()
@@ -79,7 +82,9 @@ impl Task for SyncTask {
     }
 
     #[cfg(feature = "async")]
-    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<()>>>> {
+    fn wait_async(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = HackshellResult<Option<Box<dyn Any + Send + Sync>>>>>> {
         Box::pin(async {
             Err(HackshellError::JoinError(
                 crate::error::JoinError::CannotWaitAsync,
@@ -102,7 +107,7 @@ impl Task for AsyncTask {
         Ok(())
     }
 
-    fn wait(&self) -> HackshellResult<()> {
+    fn wait(&self) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
         let wh = self
             .wait_handle
             .lock()
@@ -119,7 +124,9 @@ impl Task for AsyncTask {
     }
 
     #[cfg(feature = "async")]
-    fn wait_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<()>>>> {
+    fn wait_async(
+        &self,
+    ) -> Pin<Box<dyn Future<Output = HackshellResult<Option<Box<dyn Any + Send + Sync>>>>>> {
         let wh = self
             .wait_handle
             .lock()
@@ -143,7 +150,10 @@ impl TaskPool {
         self.inner.task_id.fetch_add(1, Ordering::Relaxed)
     }
 
-    pub fn spawn<F: FnOnce(Arc<AtomicBool>) + Send + 'static>(&self, name: &str, func: F) {
+    pub fn spawn<F>(&self, name: &str, func: F)
+    where
+        F: FnOnce(Arc<AtomicBool>) -> Option<Box<dyn Any + Send + Sync>> + Send + 'static,
+    {
         let run = Arc::new(AtomicBool::new(true));
         let run_ref = run.clone();
         let self_ref = self.clone();
@@ -155,10 +165,11 @@ impl TaskPool {
         let id = self.gen_task_id();
 
         let handle = std::thread::spawn(move || {
-            func(run_ref);
+            let ret = func(run_ref);
 
             // Automatic removal once it's finished
             let _ = self_ref.remove_by_id(id);
+            ret
         });
 
         let task = SyncTask {
@@ -178,18 +189,19 @@ impl TaskPool {
     #[cfg(feature = "async")]
     pub fn spawn_async<F>(&self, name: &str, func: F)
     where
-        F: Future + Send + Sync + 'static,
-        F::Output: Send + Sync,
+        F: Future<Output = Option<Box<dyn Any + Send + Sync>>> + Send + Sync + 'static,
     {
         let _ = self.remove(&name);
         let id = self.gen_task_id();
         let self_ref = self.clone();
         let name = name.to_string();
 
-        let handle = tokio::spawn(async move {
-            func.await;
-            let _ = self_ref.remove_by_id(id);
-        });
+        let handle: tokio::task::JoinHandle<Option<Box<dyn std::any::Any + Send + Sync>>> =
+            tokio::spawn(async move {
+                let res = func.await;
+                let _ = self_ref.remove_by_id(id);
+                res
+            });
 
         let task = AsyncTask {
             meta: TaskMetadata {
@@ -235,39 +247,42 @@ impl TaskPool {
         Ok(())
     }
 
-    pub fn wait(&self, name: &str) -> HackshellResult<()> {
+    pub fn wait(&self, name: &str) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
         let tasks = self.inner.tasks.read().unwrap();
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
 
             match task.wait() {
-                Ok(()) => Ok(()),
+                Ok(ret) => Ok(ret),
                 Err(e) => {
                     let _ = self.remove_by_id(task.meta().id);
                     Err(e)
                 }
             }
         } else {
-            Ok(())
+            Ok(None)
         }
     }
 
     #[cfg(feature = "async")]
-    pub async fn wait_async(&self, name: &str) -> HackshellResult<()> {
+    pub async fn wait_async(
+        &self,
+        name: &str,
+    ) -> HackshellResult<Option<Box<dyn Any + Send + Sync>>> {
         let tasks = self.inner.tasks.read().unwrap();
 
         if let Some(task) = tasks.get(name).cloned() {
             std::mem::drop(tasks);
 
             match task.wait_async().await {
-                Ok(()) => Ok(()),
+                Ok(ret) => Ok(ret),
                 Err(e) => {
                     let _ = self.remove_by_id(task.meta().id);
                     Err(e)
                 }
             }
         } else {
-            Ok(())
+            Ok(None)
         }
     }
 
