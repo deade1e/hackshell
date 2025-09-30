@@ -18,7 +18,7 @@ pub struct TaskMetadata {
     pub id: u64,
 }
 
-pub type TaskOutput = Option<Box<dyn Any + Send + Sync>>;
+pub type TaskOutput = Option<Box<dyn Any + Send>>;
 
 struct SyncTask {
     meta: TaskMetadata,
