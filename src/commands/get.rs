@@ -2,7 +2,7 @@ use crate::{Command, CommandResult, Hackshell};
 
 pub struct Get {}
 
-impl<C: 'static> Command<C> for Get {
+impl Command for Get {
     fn commands(&self) -> &'static [&'static str] {
         &["get"]
     }
@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Get {
         "Prints an environment variable"
     }
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[&str]) -> CommandResult {
+    fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         if cmd.len() != 2 {
             return Err("Syntax: get <name>".into());
         }

@@ -2,7 +2,7 @@ use crate::{Command, CommandResult, Hackshell};
 
 pub struct Set {}
 
-impl<C: 'static> Command<C> for Set {
+impl Command for Set {
     fn commands(&self) -> &'static [&'static str] {
         &["set"]
     }
@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Set {
         "Sets an environment variable. Syntax: set <name> <value>"
     }
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[&str]) -> CommandResult {
+    fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         if cmd.len() != 3 {
             return Err("Syntax: set <name> <value>".into());
         }

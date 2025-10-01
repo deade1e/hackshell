@@ -2,7 +2,7 @@ use crate::{Command, CommandResult, Hackshell};
 
 pub struct Env {}
 
-impl<C: 'static> Command<C> for Env {
+impl Command for Env {
     fn commands(&self) -> &'static [&'static str] {
         &["env"]
     }
@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Env {
         "Prints all environment"
     }
 
-    fn run(&self, s: &Hackshell<C>, _: &[&str]) -> CommandResult {
+    fn run(&mut self, s: &Hackshell, _: &[&str]) -> CommandResult {
         for v in s.env() {
             println!("{}={}", v.0, v.1);
         }

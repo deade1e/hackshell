@@ -2,7 +2,7 @@ use crate::{Command, CommandResult, Hackshell};
 
 pub struct Unset {}
 
-impl<C: 'static> Command<C> for Unset {
+impl Command for Unset {
     fn commands(&self) -> &'static [&'static str] {
         &["unset"]
     }
@@ -11,7 +11,7 @@ impl<C: 'static> Command<C> for Unset {
         "Unsets an environment variable"
     }
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[&str]) -> CommandResult {
+    fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         if cmd.len() != 2 {
             return Err("Syntax: unset <name>".into());
         }

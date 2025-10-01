@@ -2,13 +2,11 @@ use std::error::Error;
 
 use hackshell::{Command, CommandResult, Hackshell, error::HackshellError};
 
-struct MyContext {
+struct PrintSecret {
     secret: String,
 }
 
-struct PrintSecret {}
-
-impl Command<MyContext> for PrintSecret {
+impl Command for PrintSecret {
     fn commands(&self) -> &'static [&'static str] {
         &["printsecret"]
     }
@@ -17,20 +15,18 @@ impl Command<MyContext> for PrintSecret {
         "This is a non-default command installed by the Hackshell consumer. It prints a variable inside the passed context."
     }
 
-    fn run(&self, s: &Hackshell<MyContext>, _cmd: &[&str]) -> CommandResult {
-        println!("{}", s.get_ctx().secret);
+    fn run(&mut self, _s: &Hackshell, _cmd: &[&str]) -> CommandResult {
+        println!("{}", self.secret);
         Ok(None)
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let ctx = MyContext {
+    let s = Hackshell::new("printsecret> ")?;
+
+    s.add_command(PrintSecret {
         secret: "It rains red in some parts of the world".to_string(),
-    };
-
-    let s = Hackshell::new(ctx, "printsecret> ")?;
-
-    s.add_command(PrintSecret {});
+    });
 
     loop {
         match s.run() {

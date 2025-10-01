@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, MutexGuard, RwLock, atomic::AtomicBool},
+    sync::{Arc, Mutex, RwLock, atomic::AtomicBool},
 };
 
 use crate::{
@@ -19,20 +19,25 @@ use commands::{
 use rustyline::{DefaultEditor, error::ReadlineError};
 use taskpool::{TaskMetadata, TaskPool};
 
-pub trait Command<C>: Send + Sync + 'static {
+pub trait Command: Send + Sync + 'static {
     fn commands(&self) -> &'static [&'static str];
 
     fn help(&self) -> &'static str;
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[&str]) -> CommandResult;
+    fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult;
 }
 
 pub type CommandResult =
     std::result::Result<Option<String>, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
-struct InnerHackshell<C> {
-    ctx: Mutex<C>,
-    commands: RwLock<HashMap<String, Arc<dyn Command<C>>>>,
+pub struct CommandEntry {
+    commands: &'static [&'static str],
+    help: &'static str,
+    command: Mutex<Box<dyn Command>>,
+}
+
+struct InnerHackshell {
+    commands: RwLock<HashMap<String, Arc<CommandEntry>>>,
     env: RwLock<HashMap<String, String>>,
     pool: TaskPool,
     prompt: RwLock<String>,
@@ -40,25 +45,17 @@ struct InnerHackshell<C> {
     rl: Mutex<DefaultEditor>,
 }
 
-pub struct Hackshell<C> {
-    inner: Arc<InnerHackshell<C>>,
+#[derive(Clone)]
+pub struct Hackshell {
+    inner: Arc<InnerHackshell>,
 }
 
-impl<C> Clone for Hackshell<C> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
-    }
-}
-
-impl<C: 'static> Hackshell<C> {
-    pub fn new(ctx: C, prompt: &str) -> HackshellResult<Self> {
+impl Hackshell {
+    pub fn new(prompt: &str) -> HackshellResult<Self> {
         let rl = DefaultEditor::new()?;
 
         let s = Self {
             inner: Arc::new(InnerHackshell {
-                ctx: Mutex::new(ctx),
                 commands: Default::default(),
                 env: Default::default(),
                 pool: Default::default(),
@@ -97,22 +94,25 @@ impl<C: 'static> Hackshell<C> {
         Ok(())
     }
 
-    pub fn add_command<D: Command<C> + 'static>(&self, command: D) -> &Self {
-        let c = Arc::new(command);
+    pub fn add_command(&self, command: impl Command) -> &Self {
+        let commands = command.commands();
+        let help = command.help();
 
-        for cmd in c.commands().iter() {
+        let command_entry = Arc::new(CommandEntry {
+            commands,
+            help,
+            command: Mutex::new(Box::new(command)),
+        });
+
+        for cmd in commands.iter() {
             self.inner
                 .commands
                 .write()
                 .unwrap()
-                .insert(cmd.to_string(), c.clone());
+                .insert(cmd.to_string(), command_entry.clone());
         }
 
         self
-    }
-
-    pub fn get_ctx(&self) -> MutexGuard<'_, C> {
-        self.inner.ctx.lock().unwrap()
     }
 
     pub fn spawn<F>(&self, name: &str, func: F)
@@ -147,7 +147,7 @@ impl<C: 'static> Hackshell<C> {
         self.inner.pool.get_all()
     }
 
-    pub fn get_commands(&self) -> Vec<Arc<dyn Command<C>>> {
+    pub fn get_commands(&self) -> Vec<Arc<CommandEntry>> {
         self.inner
             .commands
             .read()
@@ -191,7 +191,7 @@ impl<C: 'static> Hackshell<C> {
 
         match command {
             Some(c) => {
-                return Ok(c.run(self, cmd)?);
+                return Ok(c.command.lock().unwrap().run(self, cmd)?);
             }
             None => Err(HackshellError::CommandNotFound),
         }

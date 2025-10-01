@@ -15,7 +15,7 @@ struct Cmd {
 
 pub struct Task {}
 
-impl<C: 'static> Command<C> for Task {
+impl Command for Task {
     fn commands(&self) -> &'static [&'static str] {
         &["task"]
     }
@@ -24,7 +24,7 @@ impl<C: 'static> Command<C> for Task {
         "Lists and manages tasks"
     }
 
-    fn run(&self, s: &Hackshell<C>, cmd: &[&str]) -> CommandResult {
+    fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         let args = Cmd::try_parse_from(cmd)?;
 
         if let Some(name) = args.terminate {

@@ -4,7 +4,7 @@ use hackshell::{Command, CommandResult, Hackshell, error::HackshellError};
 
 struct RunTask {}
 
-impl Command<()> for RunTask {
+impl Command for RunTask {
     fn commands(&self) -> &'static [&'static str] {
         &["runtask"]
     }
@@ -13,7 +13,7 @@ impl Command<()> for RunTask {
         "This is a non-default command installed by the Hackshell consumer. It simply spawns a task that lasts n seconds in the background."
     }
 
-    fn run(&self, s: &Hackshell<()>, cmd: &[&str]) -> CommandResult {
+    fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         if cmd.len() < 2 {
             return Err("Syntax: runtask <nsecs>".into());
         }
@@ -39,7 +39,7 @@ impl Command<()> for RunTask {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let s = Hackshell::new((), "runtask> ")?;
+    let s = Hackshell::new("runtask> ")?;
 
     s.add_command(RunTask {});
 

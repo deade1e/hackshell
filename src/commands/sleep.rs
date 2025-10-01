@@ -4,7 +4,7 @@ use crate::{Command, CommandResult, Hackshell};
 
 pub struct Sleep {}
 
-impl<C> Command<C> for Sleep {
+impl Command for Sleep {
     fn commands(&self) -> &'static [&'static str] {
         &["sleep"]
     }
@@ -13,7 +13,7 @@ impl<C> Command<C> for Sleep {
         "Sleeps for a specific amount of time. Syntax: sleep <seconds>"
     }
 
-    fn run(&self, _: &Hackshell<C>, cmd: &[&str]) -> CommandResult {
+    fn run(&mut self, _: &Hackshell, cmd: &[&str]) -> CommandResult {
         if cmd.len() == 2 {
             let duration = cmd[1].parse::<u64>().map_err(|e| e.to_string())?;
             sleep(Duration::from_secs(duration));

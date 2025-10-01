@@ -22,9 +22,11 @@ impl AppContext {
 }
 
 // Command to spawn an async task using the TaskPool
-struct AsyncTaskCommand;
+struct AsyncTaskCommand {
+    ctx: Arc<AppContext>,
+}
 
-impl Command<AppContext> for AsyncTaskCommand {
+impl Command for AsyncTaskCommand {
     fn commands(&self) -> &'static [&'static str] {
         &["async-task", "at"]
     }
@@ -33,7 +35,7 @@ impl Command<AppContext> for AsyncTaskCommand {
         "async-task <name> [count] - Spawn an async task using task management"
     }
 
-    fn run(&self, shell: &Hackshell<AppContext>, args: &[&str]) -> CommandResult {
+    fn run(&mut self, shell: &Hackshell, args: &[&str]) -> CommandResult {
         if args.len() < 2 {
             println!("Usage: async-task <name> [count]");
             return Ok(None);
@@ -45,7 +47,7 @@ impl Command<AppContext> for AsyncTaskCommand {
             .and_then(|s| s.parse::<u32>().ok())
             .unwrap_or(10);
 
-        let messages = shell.get_ctx().messages.clone();
+        let messages = self.ctx.messages.clone();
         let task_name_clone = task_name.clone();
 
         // Using the TaskPool's spawn_async method
@@ -77,9 +79,11 @@ impl Command<AppContext> for AsyncTaskCommand {
 }
 
 // Command to check async task progress
-struct CheckProgressCommand;
+struct CheckProgressCommand {
+    ctx: Arc<AppContext>,
+}
 
-impl Command<AppContext> for CheckProgressCommand {
+impl Command for CheckProgressCommand {
     fn commands(&self) -> &'static [&'static str] {
         &["progress", "p"]
     }
@@ -88,9 +92,8 @@ impl Command<AppContext> for CheckProgressCommand {
         "progress - Check progress of async tasks"
     }
 
-    fn run(&self, shell: &Hackshell<AppContext>, _args: &[&str]) -> CommandResult {
-        let ctx = shell.get_ctx();
-        let messages = ctx.messages.lock().unwrap();
+    fn run(&mut self, shell: &Hackshell, _args: &[&str]) -> CommandResult {
+        let messages = self.ctx.messages.lock().unwrap();
 
         println!("Current Status:");
         println!("   Active tasks: {}", shell.get_tasks().len());
@@ -110,15 +113,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Hackshell Async Tasks Example");
     println!("Type 'help' to see available commands\n");
 
-    let context = AppContext::new();
-    let shell = Hackshell::new(context, "async> ")?;
+    let context = Arc::new(AppContext::new());
+    let shell = Hackshell::new("async> ")?;
 
     // Set up history
     shell.set_history_file("history.txt")?;
 
     // Add our custom async commands
-    shell.add_command(AsyncTaskCommand);
-    shell.add_command(CheckProgressCommand);
+    shell.add_command(AsyncTaskCommand {
+        ctx: context.clone(),
+    });
+
+    shell.add_command(CheckProgressCommand {
+        ctx: context.clone(),
+    });
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     let handle = rt.spawn_blocking(move || {

@@ -4,7 +4,7 @@ use hackshell::{Command, CommandResult, Hackshell, error::HackshellError};
 
 struct HelloWorld {}
 
-impl Command<()> for HelloWorld {
+impl Command for HelloWorld {
     fn commands(&self) -> &'static [&'static str] {
         &["helloworld"]
     }
@@ -13,14 +13,14 @@ impl Command<()> for HelloWorld {
         "This is a non-default command installed by the Hackshell consumer. It simply prints Hello, World."
     }
 
-    fn run(&self, _s: &Hackshell<()>, _cmd: &[&str]) -> CommandResult {
+    fn run(&mut self, _s: &Hackshell, _cmd: &[&str]) -> CommandResult {
         println!("Hello, World!");
         Ok(None)
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let s = Hackshell::new((), "helloworld> ")?;
+    let s = Hackshell::new("helloworld> ")?;
 
     s.add_command(HelloWorld {});
 

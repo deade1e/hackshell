@@ -2,9 +2,11 @@ use std::error::Error;
 
 use hackshell::{Command, CommandResult, Hackshell, error::HackshellError};
 
-struct Counter {}
+struct Counter {
+    num: u64,
+}
 
-impl Command<u64> for Counter {
+impl Command for Counter {
     fn commands(&self) -> &'static [&'static str] {
         &["counter"]
     }
@@ -13,20 +15,19 @@ impl Command<u64> for Counter {
         "This is a non-default command installed by the Hackshell consumer. It simply increments an internal counter"
     }
 
-    fn run(&self, s: &Hackshell<u64>, _cmd: &[&str]) -> CommandResult {
-        let mut num = s.get_ctx();
-        *(num) += 1;
+    fn run(&mut self, _s: &Hackshell, _cmd: &[&str]) -> CommandResult {
+        self.num += 1;
 
-        println!("The counter is now: {}\r", num);
+        println!("The counter is now: {}\r", self.num);
 
         Ok(None)
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let s = Hackshell::new(0u64, "counter> ")?;
+    let s = Hackshell::new("counter> ")?;
 
-    s.add_command(Counter {});
+    s.add_command(Counter { num: 0 });
 
     loop {
         match s.run() {

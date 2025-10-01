@@ -4,7 +4,7 @@ use crate::{Command, CommandResult, Hackshell};
 
 pub struct Help {}
 
-impl<C: 'static> Command<C> for Help {
+impl Command for Help {
     fn commands(&self) -> &'static [&'static str] {
         &["help"]
     }
@@ -13,7 +13,7 @@ impl<C: 'static> Command<C> for Help {
         "Displays this message"
     }
 
-    fn run(&self, s: &Hackshell<C>, _: &[&str]) -> CommandResult {
+    fn run(&mut self, s: &Hackshell, _: &[&str]) -> CommandResult {
         let commands = s.get_commands();
         let mut printed = vec![];
 
@@ -24,7 +24,7 @@ impl<C: 'static> Command<C> for Help {
             let already = printed.iter().any(|e| Arc::ptr_eq(e, &c));
 
             if !already {
-                eprintln!("{:<24} {:<24}", c.commands().join(", "), c.help());
+                eprintln!("{:<24} {:<24}", c.commands.join(", "), c.help);
                 printed.push(c.clone());
             }
         }
