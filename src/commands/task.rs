@@ -24,7 +24,7 @@ impl Command for Task {
         "Lists and manages tasks"
     }
 
-    fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
+    fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         let args = Cmd::try_parse_from(cmd)?;
 
         if let Some(name) = args.terminate {

@@ -11,7 +11,7 @@ impl Command for Get {
         "Prints an environment variable"
     }
 
-    fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
+    fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         if cmd.len() != 2 {
             return Err("Syntax: get <name>".into());
         }

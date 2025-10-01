@@ -13,7 +13,7 @@ impl Command for Sleep {
         "Sleeps for a specific amount of time. Syntax: sleep <seconds>"
     }
 
-    fn run(&mut self, _: &Hackshell, cmd: &[&str]) -> CommandResult {
+    fn run(&self, _: &Hackshell, cmd: &[&str]) -> CommandResult {
         if cmd.len() == 2 {
             let duration = cmd[1].parse::<u64>().map_err(|e| e.to_string())?;
             sleep(Duration::from_secs(duration));

@@ -1,9 +1,9 @@
-use std::error::Error;
+use std::{error::Error, sync::Mutex};
 
 use hackshell::{Command, CommandResult, Hackshell, error::HackshellError};
 
 struct Counter {
-    num: u64,
+    num: Mutex<u64>,
 }
 
 impl Command for Counter {
@@ -15,10 +15,11 @@ impl Command for Counter {
         "This is a non-default command installed by the Hackshell consumer. It simply increments an internal counter"
     }
 
-    fn run(&mut self, _s: &Hackshell, _cmd: &[&str]) -> CommandResult {
-        self.num += 1;
+    fn run(&self, _s: &Hackshell, _cmd: &[&str]) -> CommandResult {
+        let mut num = self.num.lock().unwrap();
+        (*num) += 1;
 
-        println!("The counter is now: {}\r", self.num);
+        println!("The counter is now: {}\r", num);
 
         Ok(None)
     }
@@ -27,7 +28,7 @@ impl Command for Counter {
 fn main() -> Result<(), Box<dyn Error>> {
     let s = Hackshell::new("counter> ")?;
 
-    s.add_command(Counter { num: 0 });
+    s.add_command(Counter { num: Mutex::new(0) });
 
     loop {
         match s.run() {

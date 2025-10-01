@@ -11,7 +11,7 @@ impl Command for Exit {
         "Exits the program"
     }
 
-    fn run(&mut self, _: &Hackshell, _cmd: &[&str]) -> CommandResult {
+    fn run(&self, _: &Hackshell, _cmd: &[&str]) -> CommandResult {
         Err(HackshellError::Exit.into())
     }
 }

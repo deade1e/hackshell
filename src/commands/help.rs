@@ -13,7 +13,7 @@ impl Command for Help {
         "Displays this message"
     }
 
-    fn run(&mut self, s: &Hackshell, _: &[&str]) -> CommandResult {
+    fn run(&self, s: &Hackshell, _: &[&str]) -> CommandResult {
         let commands = s.get_commands();
         let mut printed = vec![];
 

@@ -11,7 +11,7 @@ impl Command for Env {
         "Prints all environment"
     }
 
-    fn run(&mut self, s: &Hackshell, _: &[&str]) -> CommandResult {
+    fn run(&self, s: &Hackshell, _: &[&str]) -> CommandResult {
         for v in s.env() {
             println!("{}={}", v.0, v.1);
         }

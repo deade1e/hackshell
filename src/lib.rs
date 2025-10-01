@@ -27,14 +27,10 @@ pub trait Command: Send + Sync + 'static {
 
     fn help(&self) -> &'static str;
 
-    fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult;
+    fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult;
 }
 
-struct InnerCommandEntry {
-    commands: &'static [&'static str],
-    help: &'static str,
-    command: Mutex<Box<dyn Command>>,
-}
+type InnerCommandEntry = dyn Command;
 
 #[derive(Clone)]
 pub struct CommandEntry {
@@ -43,25 +39,19 @@ pub struct CommandEntry {
 
 impl CommandEntry {
     fn new(c: impl Command) -> Self {
-        Self {
-            inner: Arc::new(InnerCommandEntry {
-                commands: c.commands(),
-                help: c.help(),
-                command: Mutex::new(Box::new(c)),
-            }),
-        }
+        Self { inner: Arc::new(c) }
     }
 
     fn commands(&self) -> &'static [&'static str] {
-        self.inner.commands
+        self.inner.commands()
     }
 
     fn help(&self) -> &'static str {
-        self.inner.help
+        self.inner.help()
     }
 
     fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
-        self.inner.command.lock().unwrap().run(s, cmd)
+        self.inner.run(s, cmd)
     }
 }
 

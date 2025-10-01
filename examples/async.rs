@@ -35,7 +35,7 @@ impl Command for AsyncTaskCommand {
         "async-task <name> [count] - Spawn an async task using task management"
     }
 
-    fn run(&mut self, shell: &Hackshell, args: &[&str]) -> CommandResult {
+    fn run(&self, shell: &Hackshell, args: &[&str]) -> CommandResult {
         if args.len() < 2 {
             println!("Usage: async-task <name> [count]");
             return Ok(None);
@@ -92,7 +92,7 @@ impl Command for CheckProgressCommand {
         "progress - Check progress of async tasks"
     }
 
-    fn run(&mut self, shell: &Hackshell, _args: &[&str]) -> CommandResult {
+    fn run(&self, shell: &Hackshell, _args: &[&str]) -> CommandResult {
         let messages = self.ctx.messages.lock().unwrap();
 
         println!("Current Status:");
