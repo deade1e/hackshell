@@ -19,6 +19,9 @@ use commands::{
 use rustyline::{DefaultEditor, error::ReadlineError};
 use taskpool::{TaskMetadata, TaskPool};
 
+pub type CommandResult =
+    std::result::Result<Option<String>, Box<dyn std::error::Error + Send + Sync + 'static>>;
+
 pub trait Command: Send + Sync + 'static {
     fn commands(&self) -> &'static [&'static str];
 
@@ -27,18 +30,47 @@ pub trait Command: Send + Sync + 'static {
     fn run(&mut self, s: &Hackshell, cmd: &[&str]) -> CommandResult;
 }
 
-pub type CommandResult =
-    std::result::Result<Option<String>, Box<dyn std::error::Error + Send + Sync + 'static>>;
-
-pub struct CommandEntry {
+struct InnerCommandEntry {
     commands: &'static [&'static str],
     help: &'static str,
     command: Mutex<Box<dyn Command>>,
 }
 
+#[derive(Clone)]
+pub struct CommandEntry {
+    inner: Arc<InnerCommandEntry>,
+}
+
+impl CommandEntry {
+    fn new(c: impl Command) -> Self {
+        Self {
+            inner: Arc::new(InnerCommandEntry {
+                commands: c.commands(),
+                help: c.help(),
+                command: Mutex::new(Box::new(c)),
+            }),
+        }
+    }
+
+    fn commands(&self) -> &'static [&'static str] {
+        self.inner.commands
+    }
+
+    fn help(&self) -> &'static str {
+        self.inner.help
+    }
+
+    fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
+        self.inner.command.lock().unwrap().run(s, cmd)
+    }
+}
+
+type Commands = HashMap<String, CommandEntry>;
+type Environment = HashMap<String, String>;
+
 struct InnerHackshell {
-    commands: RwLock<HashMap<String, Arc<CommandEntry>>>,
-    env: RwLock<HashMap<String, String>>,
+    commands: RwLock<Commands>,
+    env: RwLock<Environment>,
     pool: TaskPool,
     prompt: RwLock<String>,
     history_file: RwLock<Option<PathBuf>>,
@@ -95,21 +127,14 @@ impl Hackshell {
     }
 
     pub fn add_command(&self, command: impl Command) -> &Self {
-        let commands = command.commands();
-        let help = command.help();
+        let ce = CommandEntry::new(command);
 
-        let command_entry = Arc::new(CommandEntry {
-            commands,
-            help,
-            command: Mutex::new(Box::new(command)),
-        });
-
-        for cmd in commands.iter() {
+        for cmd in ce.commands().iter() {
             self.inner
                 .commands
                 .write()
                 .unwrap()
-                .insert(cmd.to_string(), command_entry.clone());
+                .insert(cmd.to_string(), ce.clone());
         }
 
         self
@@ -147,7 +172,7 @@ impl Hackshell {
         self.inner.pool.get_all()
     }
 
-    pub fn get_commands(&self) -> Vec<Arc<CommandEntry>> {
+    pub fn get_commands(&self) -> Vec<CommandEntry> {
         self.inner
             .commands
             .read()
@@ -191,7 +216,7 @@ impl Hackshell {
 
         match command {
             Some(c) => {
-                return Ok(c.command.lock().unwrap().run(self, cmd)?);
+                return Ok(c.run(self, cmd)?);
             }
             None => Err(HackshellError::CommandNotFound),
         }
