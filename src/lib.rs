@@ -212,9 +212,14 @@ impl Hackshell {
         }
     }
 
+    pub fn feed_string_slice(&self, cmd: &[String]) -> HackshellResult<Option<String>> {
+        let cmd_refs: Vec<&str> = cmd.iter().map(|e| e.as_str()).collect();
+        self.feed_slice(&cmd_refs)
+    }
+
     pub fn feed_line(&self, line: &str) -> HackshellResult<Option<String>> {
         let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
-        let cmd_refs: Vec<&str> = cmd.iter().map(|s| s.as_str()).collect();
+        let cmd_refs: Vec<&str> = cmd.iter().map(|e| e.as_str()).collect();
         self.feed_slice(&cmd_refs)
     }
 
