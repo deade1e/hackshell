@@ -10,7 +10,6 @@ Hackshell is a lightweight, customizable shell framework built in Rust. It provi
 - **Environment Variables**: Built-in environment variable storage and manipulation
 - **Rich Command Set**: Comes with essential built-in commands like `help`, `set`, `get`, `env`, etc.
 - **Command History**: Persistent command history between sessions
-- **Custom Context**: Bring your own application context for deep integration
 
 ## Built-in Commands
 
@@ -36,8 +35,7 @@ use hackshell::{Hackshell, error::HackshellError};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new shell with a custom context (in this case just ())
-
-    let shell = Hackshell::<()>::new((), "basic> ")?;
+    let shell = Hackshell::new("basic> ")?;
     shell.set_history_file("history.txt")?;
 
     // Enter the shell loop
@@ -70,7 +68,7 @@ use hackshell::{Hackshell, Command, CommandResult};
 
 struct MyCommand;
 
-impl Command<()> for MyCommand {
+impl Command for MyCommand {
     fn commands(&self) -> &'static [&'static str] {
         &["mycmd"]
     }
@@ -79,14 +77,14 @@ impl Command<()> for MyCommand {
         "mycmd - My custom command"
     }
 
-    fn run(&self, shell: &mut Hackshell<()>, args: &[String]) -> CommandResult {
+    fn run(&self, shell: &mut Hackshell, args: &[&str]) -> CommandResult {
         println!("My custom command was called with args: {:?}", &args[1..]);
         Ok(())
     }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut shell = Hackshell::new((), "hackshell> ")?;
+    let mut shell = Hackshell::new("hackshell> ")?;
     shell.set_history_file("something.txt")?;
 
     // Add your custom command
@@ -96,32 +94,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ...
     
     Ok(())
-}
-```
-
-### Advanced Context Example
-
-```rust
-struct AppState {
-    config: RwLock<HashMap<String, String>>,
-    client: Mutex<DatabaseClient>,
-}
-
-// Your custom commands can now access the AppState
-struct ConfigCommand;
-
-impl Command<AppState> for ConfigCommand {
-    // Implementation omitted for brevity
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let app_state = AppState {
-        config: RwLock::new(HashMap::new()),
-        client: Mutex::new(DatabaseClient::connect("localhost:5432")?),
-    };
-    
-    let mut shell = Hackshell::new(app_state, "myapp> ")?;
-    // ...
 }
 ```
 
@@ -147,6 +119,8 @@ for task in tasks {
 // Kill a task
 shell.kill("my-task")?;
 ```
+
+It also support asynchronous tasks!
 
 ## Installation
 
