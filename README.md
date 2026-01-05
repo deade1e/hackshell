@@ -2,7 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Hackshell is a lightweight, customizable shell framework built in Rust. It provides an interactive command-line interface that can be easily extended with custom commands and integrated into your applications.
+Hackshell is a lightweight, customizable shell framework built in Rust. 
+It provides an interactive command-line interface that can be easily extended 
+with custom commands and integrated into your applications.
 
 ## Features
 
@@ -26,7 +28,8 @@ Hackshell comes with several built-in commands:
 
 ## Usage
 
-You can find complete examples in the `examples` directory. The following are quick examples.
+You can find complete examples in the `examples` directory.
+The following are quick examples.
 
 ### Basic Example
 
