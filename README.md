@@ -80,9 +80,9 @@ impl Command for MyCommand {
         "mycmd - My custom command"
     }
 
-    fn run(&self, shell: &mut Hackshell, args: &[&str]) -> CommandResult {
+    fn run(&self, _shell: &Hackshell, args: &[&str]) -> CommandResult {
         println!("My custom command was called with args: {:?}", &args[1..]);
-        Ok(())
+        Ok(None)
     }
 }
 
@@ -104,26 +104,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Hackshell allows you to spawn and manage background tasks:
 
-```rust
+```rust,ignore
 // Spawn a background task
 shell.spawn("my-task", move |run| {
     for i in 0..10 {
-        println!("Background task: {}\r", i);
+        // Check if we should keep running
+        if !run.load(Ordering::Relaxed) {
+            break;
+        }
+        println!("Background task: {}", i);
         sleep(Duration::from_secs(1));
     }
+    None // Return TaskOutput
 });
 
 // List active tasks
 let tasks = shell.get_tasks();
 for task in tasks {
-    println!("Task: {}, running for {}s", task.name, task.duration.as_secs());
+    let duration = chrono::Utc::now() - task.started;
+    println!("Task: {}, running for {}s", task.name, duration.num_seconds());
 }
 
-// Kill a task
-shell.kill("my-task")?;
+// Terminate a task
+shell.terminate("my-task")?;
 ```
 
 It also support asynchronous tasks!
+
+## Forking Shells
+
+Create a child shell that inherits the parent's environment:
+
+```rust,ignore
+// Create a subshell with its own prompt
+let child = shell.fork("subshell> ")?;
+child.add_command(MySubshellCommand {});
+
+// Child has the same env vars as parent
+assert_eq!(shell.get_var("foo"), child.get_var("foo"));
+```
 
 ## Installation
 
