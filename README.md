@@ -104,29 +104,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Hackshell allows you to spawn and manage background tasks:
 
-```rust,ignore
-// Spawn a background task
-shell.spawn("my-task", move |run| {
-    for i in 0..10 {
-        // Check if we should keep running
-        if !run.load(Ordering::Relaxed) {
-            break;
+```rust
+use hackshell::Hackshell;
+use std::sync::atomic::Ordering;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let shell = Hackshell::new("> ")?;
+
+    shell.spawn("my-task", |run| {
+        while run.load(Ordering::Relaxed) {
+            // do work...
         }
-        println!("Background task: {}", i);
-        sleep(Duration::from_secs(1));
+        None
+    });
+
+    for task in shell.get_tasks() {
+        println!("Task: {}, started: {}", task.name, task.started);
     }
-    None // Return TaskOutput
-});
 
-// List active tasks
-let tasks = shell.get_tasks();
-for task in tasks {
-    let duration = chrono::Utc::now() - task.started;
-    println!("Task: {}, running for {}s", task.name, duration.num_seconds());
+    shell.terminate("my-task")?;
+    Ok(())
 }
-
-// Terminate a task
-shell.terminate("my-task")?;
 ```
 
 It also support asynchronous tasks!
@@ -135,13 +133,17 @@ It also support asynchronous tasks!
 
 Create a child shell that inherits the parent's environment:
 
-```rust,ignore
-// Create a subshell with its own prompt
-let child = shell.fork("subshell> ")?;
-child.add_command(MySubshellCommand {});
+```rust
+use hackshell::Hackshell;
 
-// Child has the same env vars as parent
-assert_eq!(shell.get_var("foo"), child.get_var("foo"));
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let shell = Hackshell::new("> ")?;
+    shell.set_var("foo", "bar");
+
+    let child = shell.fork("subshell> ")?;
+    assert_eq!(shell.get_var("foo"), child.get_var("foo"));
+    Ok(())
+}
 ```
 
 ## Installation
