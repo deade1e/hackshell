@@ -131,7 +131,7 @@ Add Hackshell to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hackshell = "0.3.16"
+hackshell = "0.3.17"
 ```
 
 ## License
