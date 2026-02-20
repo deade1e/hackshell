@@ -257,13 +257,32 @@ impl Hackshell {
 
     /// Async version of [`Hackshell::run`].
     ///
-    /// Runs the shell loop inside `spawn_blocking` so it doesn't block the
-    /// async runtime. Use [`Hackshell::block_on`] from within sync commands
-    /// to call async code.
+    /// Reads input using `spawn_blocking` (since rustyline is sync), then
+    /// dispatches commands in async context. Async commands are awaited
+    /// directly, sync commands run in `spawn_blocking`.
     #[cfg(feature = "async")]
     pub async fn run_async(&self) -> HackshellResult<Option<String>> {
+        // Read line in spawn_blocking (rustyline is sync)
         let shell = self.clone();
-        tokio::task::spawn_blocking(move || shell.run()).await?
+        let line = tokio::task::spawn_blocking(move || {
+            let mut rl = shell.inner.rl.lock().unwrap();
+            let readline = rl.readline(&*shell.inner.prompt.read().unwrap());
+
+            match readline {
+                Ok(line) => {
+                    if let Some(hfile) = shell.inner.history_file.read().unwrap().as_ref() {
+                        rl.add_history_entry(&line)?;
+                        rl.save_history(hfile)?;
+                    }
+                    Ok(line)
+                }
+                Err(e) => Err(HackshellError::from(e)),
+            }
+        })
+        .await??;
+
+        // Back in async context - dispatch the command
+        self.feed_line_async(&line).await
     }
 
     pub fn get_tasks(&self) -> Vec<TaskMetadata> {
@@ -316,14 +335,55 @@ impl Hackshell {
             Some(entry) => match &entry.inner {
                 CommandInner::Sync(c) => Ok(c.run(self, cmd)?),
                 #[cfg(feature = "async")]
-                CommandInner::Async(c) => {
-                    let handle = tokio::runtime::Handle::try_current()
-                        .map_err(|_| HackshellError::NoAsyncRuntime)?;
-                    Ok(handle.block_on(c.run(self, cmd))?)
-                }
+                CommandInner::Async(_) => Err(HackshellError::AsyncCommandInSyncContext),
             },
             None => Err(HackshellError::CommandNotFound),
         }
+    }
+
+    /// Async version of [`Hackshell::feed_slice`].
+    ///
+    /// Executes async commands directly, and runs sync commands inside
+    /// `spawn_blocking`.
+    #[cfg(feature = "async")]
+    pub async fn feed_slice_async(&self, cmd: &[&str]) -> HackshellResult<Option<String>> {
+        if cmd.is_empty() {
+            return Ok(None);
+        }
+
+        let command = self.inner.commands.read().unwrap().get(cmd[0]).cloned();
+
+        match command {
+            Some(entry) => match &entry.inner {
+                CommandInner::Sync(c) => {
+                    let c = c.clone();
+                    let shell = self.clone();
+                    let cmd_owned: Vec<String> = cmd.iter().map(|s| s.to_string()).collect();
+                    tokio::task::spawn_blocking(move || {
+                        let cmd_refs: Vec<&str> = cmd_owned.iter().map(|s| s.as_str()).collect();
+                        c.run(&shell, &cmd_refs)
+                    })
+                    .await?
+                    .map_err(HackshellError::from)
+                }
+                CommandInner::Async(c) => Ok(c.run(self, cmd).await?),
+            },
+            None => Err(HackshellError::CommandNotFound),
+        }
+    }
+
+    /// Async version of [`Hackshell::feed_string_slice`].
+    #[cfg(feature = "async")]
+    pub async fn feed_string_slice_async(&self, cmd: &[String]) -> HackshellResult<Option<String>> {
+        let cmd_refs: Vec<&str> = cmd.iter().map(|e| e.as_str()).collect();
+        self.feed_slice_async(&cmd_refs).await
+    }
+
+    /// Async version of [`Hackshell::feed_line`].
+    #[cfg(feature = "async")]
+    pub async fn feed_line_async(&self, line: &str) -> HackshellResult<Option<String>> {
+        let cmd = shlex::Shlex::new(line).collect::<Vec<String>>();
+        self.feed_string_slice_async(&cmd).await
     }
 
     pub fn feed_string_slice(&self, cmd: &[String]) -> HackshellResult<Option<String>> {

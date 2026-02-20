@@ -29,9 +29,9 @@ pub enum HackshellError {
     /// Readline specific error
     OtherReadline(ReadlineError),
     JoinError(JoinError),
-    /// Async command called without a tokio runtime
+    /// Async command called from sync context
     #[cfg(feature = "async")]
-    NoAsyncRuntime,
+    AsyncCommandInSyncContext,
 }
 
 impl From<Box<dyn std::error::Error + Send + Sync + 'static>> for HackshellError {
@@ -104,7 +104,10 @@ impl Display for HackshellError {
                 }
             },
             #[cfg(feature = "async")]
-            Self::NoAsyncRuntime => write!(f, "Async command requires a tokio runtime"),
+            Self::AsyncCommandInSyncContext => write!(
+                f,
+                "Async commands cannot be run from sync context, use run_async() instead"
+            ),
         }
     }
 }
