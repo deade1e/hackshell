@@ -1,17 +1,13 @@
-use clap::Parser;
-
 use crate::{Command, CommandResult, Hackshell};
 
-#[derive(Parser, Debug)]
-struct Cmd {
-    /// Terminate the task
-    #[clap(short = 't', long)]
-    pub terminate: Option<String>,
+const TASK_HELP: &str = "\
+Usage: task [OPTIONS]
 
-    /// Wait the task. This command blocks the shell until the task ends.
-    #[clap(short = 'w', long)]
-    pub wait: Option<String>,
-}
+Options:
+  -t, --terminate <name>  Terminate the task
+  -w, --wait <name>       Wait for the task (blocks until it ends)
+  -h, --help              Print this help message
+";
 
 pub struct Task {}
 
@@ -25,16 +21,25 @@ impl Command for Task {
     }
 
     fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
-        let args = Cmd::try_parse_from(cmd)?;
-
-        if let Some(name) = args.terminate {
-            s.terminate(&name)?;
-            return Ok(None);
-        }
-
-        if let Some(name) = args.wait {
-            s.join(&name)?;
-            return Ok(None);
+        match cmd.get(1).map(|s| s.as_ref()) {
+            Some("-h" | "--help") => {
+                eprint!("{}", TASK_HELP);
+                return Ok(None);
+            }
+            Some("-t" | "--terminate") => {
+                let name = cmd.get(2).ok_or("Missing task name for --terminate")?;
+                s.terminate(name)?;
+                return Ok(None);
+            }
+            Some("-w" | "--wait") => {
+                let name = cmd.get(2).ok_or("Missing task name for --wait")?;
+                s.join(name)?;
+                return Ok(None);
+            }
+            Some(flag) if flag.starts_with('-') => {
+                return Err(format!("Unknown flag: {}", flag).into());
+            }
+            _ => {}
         }
 
         let tasks = s.get_tasks();

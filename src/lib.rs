@@ -6,6 +6,9 @@ use std::{
     sync::{Arc, Mutex, RwLock, atomic::AtomicBool},
 };
 
+#[cfg(feature = "async")]
+pub use async_trait::async_trait;
+
 use crate::{
     error::{HackshellError, HackshellResult},
     taskpool::TaskOutput,
@@ -32,28 +35,73 @@ pub trait Command: Send + Sync + 'static {
     fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult;
 }
 
-type InnerCommandEntry = dyn Command;
+/// Async version of [`Command`].
+///
+/// Async commands can be awaited directly in async contexts, or will be
+/// executed via `block_on` when called from sync contexts (requires a
+/// tokio runtime to be available).
+///
+#[cfg(feature = "async")]
+#[async_trait]
+pub trait AsyncCommand: Send + Sync + 'static {
+    fn commands(&self) -> &'static [&'static str];
+
+    fn help(&self) -> &'static str;
+
+    async fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult;
+}
+
+#[derive(Clone)]
+enum CommandInner {
+    Sync(Arc<dyn Command>),
+    #[cfg(feature = "async")]
+    Async(Arc<dyn AsyncCommand>),
+}
 
 #[derive(Clone)]
 pub struct CommandEntry {
-    inner: Arc<InnerCommandEntry>,
+    inner: CommandInner,
 }
 
 impl CommandEntry {
     fn new(c: impl Command) -> Self {
-        Self { inner: Arc::new(c) }
+        Self {
+            inner: CommandInner::Sync(Arc::new(c)),
+        }
     }
 
-    fn commands(&self) -> &'static [&'static str] {
-        self.inner.commands()
+    #[cfg(feature = "async")]
+    fn new_async(c: impl AsyncCommand) -> Self {
+        Self {
+            inner: CommandInner::Async(Arc::new(c)),
+        }
     }
 
-    fn help(&self) -> &'static str {
-        self.inner.help()
+    pub fn commands(&self) -> &'static [&'static str] {
+        match &self.inner {
+            CommandInner::Sync(c) => c.commands(),
+            #[cfg(feature = "async")]
+            CommandInner::Async(c) => c.commands(),
+        }
     }
 
-    fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
-        self.inner.run(s, cmd)
+    pub fn help(&self) -> &'static str {
+        match &self.inner {
+            CommandInner::Sync(c) => c.help(),
+            #[cfg(feature = "async")]
+            CommandInner::Async(c) => c.help(),
+        }
+    }
+
+    /// Check if two command entries point to the same underlying command.
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        match (&self.inner, &other.inner) {
+            (CommandInner::Sync(a), CommandInner::Sync(b)) => Arc::ptr_eq(a, b),
+            #[cfg(feature = "async")]
+            (CommandInner::Async(a), CommandInner::Async(b)) => Arc::ptr_eq(a, b),
+            #[cfg(feature = "async")]
+            _ => false,
+        }
     }
 }
 
@@ -138,6 +186,21 @@ impl Hackshell {
 
     pub fn add_command(&self, command: impl Command) -> &Self {
         let ce = CommandEntry::new(command);
+
+        for cmd in ce.commands().iter() {
+            self.inner
+                .commands
+                .write()
+                .unwrap()
+                .insert(cmd.to_string(), ce.clone());
+        }
+
+        self
+    }
+
+    #[cfg(feature = "async")]
+    pub fn add_async_command(&self, command: impl AsyncCommand) -> &Self {
+        let ce = CommandEntry::new_async(command);
 
         for cmd in ce.commands().iter() {
             self.inner
@@ -250,9 +313,15 @@ impl Hackshell {
         let command = self.inner.commands.read().unwrap().get(cmd[0]).cloned();
 
         match command {
-            Some(c) => {
-                return Ok(c.run(self, cmd)?);
-            }
+            Some(entry) => match &entry.inner {
+                CommandInner::Sync(c) => Ok(c.run(self, cmd)?),
+                #[cfg(feature = "async")]
+                CommandInner::Async(c) => {
+                    let handle = tokio::runtime::Handle::try_current()
+                        .map_err(|_| HackshellError::NoAsyncRuntime)?;
+                    Ok(handle.block_on(c.run(self, cmd))?)
+                }
+            },
             None => Err(HackshellError::CommandNotFound),
         }
     }

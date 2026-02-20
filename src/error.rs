@@ -29,6 +29,9 @@ pub enum HackshellError {
     /// Readline specific error
     OtherReadline(ReadlineError),
     JoinError(JoinError),
+    /// Async command called without a tokio runtime
+    #[cfg(feature = "async")]
+    NoAsyncRuntime,
 }
 
 impl From<Box<dyn std::error::Error + Send + Sync + 'static>> for HackshellError {
@@ -100,6 +103,8 @@ impl Display for HackshellError {
                     write!(f, "Sync task cannot be joined asynchronously")
                 }
             },
+            #[cfg(feature = "async")]
+            Self::NoAsyncRuntime => write!(f, "Async command requires a tokio runtime"),
         }
     }
 }

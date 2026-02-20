@@ -3,7 +3,7 @@
 // This example demonstrates how to use async tasks with hackshell
 // Run with: cargo run --example async --features async
 
-use hackshell::{Command, CommandResult, Hackshell, error::HackshellError};
+use hackshell::{AsyncCommand, Command, CommandResult, Hackshell, async_trait, error::HackshellError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -78,6 +78,31 @@ impl Command for AsyncTaskCommand {
     }
 }
 
+// AsyncCommand example - the command itself is async
+struct DelayCommand;
+
+#[async_trait]
+impl AsyncCommand for DelayCommand {
+    fn commands(&self) -> &'static [&'static str] {
+        &["delay", "d"]
+    }
+
+    fn help(&self) -> &'static str {
+        "delay <seconds> - Async command that waits for the specified duration"
+    }
+
+    async fn run(&self, _shell: &Hackshell, args: &[&str]) -> CommandResult {
+        let seconds: f64 = args
+            .get(1)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1.0);
+
+        println!("Waiting for {} seconds...", seconds);
+        sleep(Duration::from_secs_f64(seconds)).await;
+        Ok(Some(format!("Done waiting {} seconds!", seconds)))
+    }
+}
+
 // Command to check async task progress
 struct CheckProgressCommand {
     ctx: Arc<AppContext>,
@@ -129,10 +154,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ctx: context.clone(),
     });
 
+    // Add async command
+    shell.add_async_command(DelayCommand);
+
     // Main shell loop using run_async
     loop {
         match shell.run_async().await {
-            Ok(_) => {}
+            Ok(Some(output)) => println!("{}", output),
+            Ok(None) => {}
             Err(e) => {
                 if matches!(e, HackshellError::Eof)
                     || matches!(e, HackshellError::Interrupted)
