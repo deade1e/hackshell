@@ -178,6 +178,31 @@ impl Hackshell {
         self.inner.pool.join_async(name).await
     }
 
+    /// Run async code from a sync context.
+    ///
+    /// This is useful when you have a sync [`Command`] but need to call async code.
+    /// Since [`Hackshell::run`] is executed inside `spawn_blocking` when using
+    /// [`Hackshell::run_async`], it's safe to block on futures directly.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called outside of a tokio runtime context.
+    #[cfg(feature = "async")]
+    pub fn block_on<F: std::future::Future>(&self, fut: F) -> F::Output {
+        tokio::runtime::Handle::current().block_on(fut)
+    }
+
+    /// Async version of [`Hackshell::run`].
+    ///
+    /// Runs the shell loop inside `spawn_blocking` so it doesn't block the
+    /// async runtime. Use [`Hackshell::block_on`] from within sync commands
+    /// to call async code.
+    #[cfg(feature = "async")]
+    pub async fn run_async(&self) -> HackshellResult<Option<String>> {
+        let shell = self.clone();
+        tokio::task::spawn_blocking(move || shell.run()).await?
+    }
+
     pub fn get_tasks(&self) -> Vec<TaskMetadata> {
         self.inner.pool.get_all()
     }

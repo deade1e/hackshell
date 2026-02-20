@@ -109,7 +109,8 @@ impl Command for CheckProgressCommand {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Hackshell Async Tasks Example");
     println!("Type 'help' to see available commands\n");
 
@@ -128,28 +129,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ctx: context.clone(),
     });
 
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let handle = rt.spawn_blocking(move || {
-        // Main shell loop
-        loop {
-            match shell.run() {
-                Ok(_) => {}
-                Err(e) => {
-                    if matches!(e, HackshellError::Eof)
-                        || matches!(e, HackshellError::Interrupted)
-                        || matches!(e, HackshellError::Exit)
-                    {
-                        println!("\nGoodbye!");
-                        break;
-                    }
-
-                    println!("Error: {}", e);
+    // Main shell loop using run_async
+    loop {
+        match shell.run_async().await {
+            Ok(_) => {}
+            Err(e) => {
+                if matches!(e, HackshellError::Eof)
+                    || matches!(e, HackshellError::Interrupted)
+                    || matches!(e, HackshellError::Exit)
+                {
+                    println!("\nGoodbye!");
+                    break;
                 }
+
+                println!("Error: {}", e);
             }
         }
-    });
-
-    let _ = rt.block_on(async { handle.await });
+    }
 
     Ok(())
 }
