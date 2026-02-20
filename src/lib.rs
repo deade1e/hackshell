@@ -65,6 +65,7 @@ struct InnerHackshell {
     prompt: RwLock<String>,
     history_file: RwLock<Option<PathBuf>>,
     rl: Mutex<DefaultEditor>,
+    parent: Mutex<Option<Hackshell>>,
 }
 
 #[derive(Clone)]
@@ -84,6 +85,7 @@ impl Hackshell {
                 prompt: RwLock::new(prompt.to_string()),
                 history_file: Default::default(),
                 rl: Mutex::new(rl),
+                parent: Mutex::new(None),
             }),
         };
 
@@ -97,6 +99,22 @@ impl Hackshell {
             .add_command(Task {});
 
         Ok(s)
+    }
+
+    /// Create a new shell and register it as a child.
+    /// The new shell has the same env as the parent.
+    pub fn fork(&self, prompt: &str) -> HackshellResult<Self> {
+        let child = Self::new(prompt)?;
+
+        // Clone the parent's env
+        {
+            let mut env = child.inner.env.write().unwrap();
+            *env = self.inner.env.read().unwrap().clone();
+        }
+
+        *child.inner.parent.lock().unwrap() = Some(self.clone());
+
+        Ok(child)
     }
 
     pub fn set_history_file<P: AsRef<Path>>(&self, path: P) -> HackshellResult<()> {
@@ -222,6 +240,7 @@ impl Hackshell {
         self.feed_string_slice(&cmd)
     }
 
+    /// Run the shell. Ask for a line and then call commands or 
     pub fn run(&self) -> HackshellResult<Option<String>> {
         let mut rl = self.inner.rl.lock().unwrap();
         let readline = rl.readline(&*self.inner.prompt.read().unwrap());
@@ -233,14 +252,17 @@ impl Hackshell {
                     rl.save_history(hfile)?;
                 }
 
+                // Feed the line into the commands and return its value.
                 return self.feed_line(&line);
             }
+            // If Ctrl-C or Ctrl-D are pressed.
             Err(e)
                 if matches!(e, ReadlineError::Interrupted) || matches!(e, ReadlineError::Eof) =>
             {
                 return Err(e.into());
             }
 
+            // Any other error returned from the readline method.
             Err(e) => {
                 eprintln!("{}", e);
                 return Err(e.into());
