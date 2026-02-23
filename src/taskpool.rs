@@ -1,6 +1,8 @@
 use crate::error::{HackshellError, HackshellResult, JoinError};
+
 #[cfg(feature = "async")]
-use std::pin::Pin;
+use std::future::Future;
+
 use std::{
     any::Any,
     collections::HashMap,
@@ -20,125 +22,107 @@ pub struct TaskMetadata {
 
 pub type TaskOutput = Option<Box<dyn Any + Send>>;
 
-struct SyncTask {
-    meta: TaskMetadata,
+enum TaskInner {
+    Sync {
+        /// This is used to signal a sync thread to stop gracefully.
+        /// In Rust, due to memory safety, it's not possible to stop normal threads, as they have no
+        /// yielding points.
+        run: Mutex<Option<Arc<AtomicBool>>>,
+        join_handle: Mutex<Option<JoinHandle<TaskOutput>>>,
+    },
 
-    /// This is used to signal a sync thread to stop gracefully.
-    /// In Rust, due to memory safety, it's not possible to stop normal threads, as they have no
-    /// yelding points.
-    run: Mutex<Option<Arc<AtomicBool>>>,
-    join_handle: Mutex<Option<JoinHandle<TaskOutput>>>,
-}
-
-#[cfg(feature = "async")]
-struct AsyncTask {
-    meta: TaskMetadata,
-    join_handle: Mutex<Option<tokio::task::JoinHandle<TaskOutput>>>,
-}
-
-trait Task {
-    fn meta(&self) -> TaskMetadata;
-    fn kill(&self) -> HackshellResult<()>;
-    fn join(&self) -> HackshellResult<TaskOutput>;
     #[cfg(feature = "async")]
-    fn join_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>>;
+    Async {
+        join_handle: Mutex<Option<tokio::task::JoinHandle<TaskOutput>>>,
+    },
+}
+
+struct Task {
+    meta: TaskMetadata,
+    inner: TaskInner,
+}
+
+impl Task {
+    fn meta(&self) -> TaskMetadata {
+        self.meta.clone()
+    }
+
+    fn kill(&self) -> HackshellResult<()> {
+        match &self.inner {
+            TaskInner::Sync { run, .. } => {
+                if let Some(run) = run.lock().unwrap().take() {
+                    run.store(false, Ordering::Relaxed);
+                }
+            }
+            #[cfg(feature = "async")]
+            TaskInner::Async { join_handle } => {
+                if let Some(handle) = join_handle.lock().unwrap().take() {
+                    handle.abort();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn join(&self) -> HackshellResult<TaskOutput> {
+        match &self.inner {
+            TaskInner::Sync { join_handle, .. } => {
+                let wh = join_handle
+                    .lock()
+                    .unwrap()
+                    .take()
+                    .ok_or(HackshellError::JoinError(JoinError::AlreadyJoining))?;
+
+                wh.join().map_err(|e| {
+                    HackshellError::JoinError(JoinError::Sync(Box::new(Mutex::new(e))))
+                })
+            }
+
+            #[cfg(feature = "async")]
+            TaskInner::Async { join_handle } => {
+                let wh = join_handle
+                    .lock()
+                    .unwrap()
+                    .take()
+                    .ok_or(HackshellError::JoinError(JoinError::AlreadyJoining))?;
+
+                let handle = tokio::runtime::Handle::try_current().map_err(|e| e.to_string())?;
+
+                handle.block_on(async move {
+                    wh.await
+                        .map_err(|e| HackshellError::JoinError(JoinError::Async(e)))
+                })
+            }
+        }
+    }
+
+    #[cfg(feature = "async")]
+    async fn join_async(&self) -> HackshellResult<TaskOutput> {
+        match &self.inner {
+            TaskInner::Sync { .. } => Err(HackshellError::JoinError(JoinError::CannotJoinAsync)),
+            TaskInner::Async { join_handle } => {
+                let wh = join_handle
+                    .lock()
+                    .unwrap()
+                    .take()
+                    .ok_or(HackshellError::JoinError(JoinError::AlreadyJoining))?;
+
+                wh.await
+                    .map_err(|e| HackshellError::JoinError(JoinError::Async(e)))
+            }
+        }
+    }
 }
 
 #[derive(Default)]
 struct InnerTaskPool {
     task_id: Arc<AtomicU64>,
-    tasks: RwLock<HashMap<String, Arc<dyn Task + Send + Sync>>>,
+    tasks: RwLock<HashMap<String, Arc<Task>>>,
 }
 
 #[derive(Default, Clone)]
 pub struct TaskPool {
     inner: Arc<InnerTaskPool>,
-}
-
-impl Task for SyncTask {
-    fn meta(&self) -> TaskMetadata {
-        self.meta.clone()
-    }
-
-    fn kill(&self) -> HackshellResult<()> {
-        if let Some(run) = self.run.lock().unwrap().take() {
-            // Signaling to a sync thread, that has no yelding points, to stop.
-            run.store(false, Ordering::Relaxed);
-        }
-        Ok(())
-    }
-
-    fn join(&self) -> HackshellResult<TaskOutput> {
-        let wh = self
-            .join_handle
-            .lock()
-            .unwrap()
-            .take()
-            .ok_or(HackshellError::JoinError(JoinError::AlreadyJoining))?;
-
-        wh.join().map_err(|e| {
-            HackshellError::JoinError(crate::error::JoinError::Sync(Box::new(Mutex::new(e))))
-        })
-    }
-
-    #[cfg(feature = "async")]
-    fn join_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>> {
-        Box::pin(async {
-            Err(HackshellError::JoinError(
-                crate::error::JoinError::CannotJoinAsync,
-            ))
-        })
-    }
-}
-
-#[cfg(feature = "async")]
-impl Task for AsyncTask {
-    fn meta(&self) -> TaskMetadata {
-        self.meta.clone()
-    }
-
-    fn kill(&self) -> HackshellResult<()> {
-        if let Some(handle) = self.join_handle.lock().unwrap().take() {
-            handle.abort();
-        }
-
-        Ok(())
-    }
-
-    fn join(&self) -> HackshellResult<TaskOutput> {
-        let wh = self
-            .join_handle
-            .lock()
-            .unwrap()
-            .take()
-            .ok_or(HackshellError::JoinError(JoinError::AlreadyJoining))?;
-
-        let handle = tokio::runtime::Handle::try_current().map_err(|e| e.to_string())?;
-
-        handle.block_on(async move {
-            wh.await
-                .map_err(|e| HackshellError::JoinError(crate::error::JoinError::Async(e)))
-        })
-    }
-
-    #[cfg(feature = "async")]
-    fn join_async(&self) -> Pin<Box<dyn Future<Output = HackshellResult<TaskOutput>>>> {
-        let wh = self
-            .join_handle
-            .lock()
-            .unwrap()
-            .take()
-            .ok_or(HackshellError::JoinError(JoinError::AlreadyJoining));
-
-        match wh {
-            Ok(wh) => Box::pin(async move {
-                wh.await
-                    .map_err(|e| HackshellError::JoinError(crate::error::JoinError::Async(e)))
-            }),
-
-            Err(e) => Box::pin(async move { Err(e.into()) }),
-        }
-    }
 }
 
 impl TaskPool {
@@ -168,18 +152,23 @@ impl TaskPool {
             ret
         });
 
-        let task = SyncTask {
+        let task = Task {
             meta: TaskMetadata {
                 name: name.clone(),
                 started: chrono::Utc::now(),
-                id: id,
+                id,
             },
-            run: Mutex::new(Some(run)),
-            join_handle: Mutex::new(Some(handle)),
+            inner: TaskInner::Sync {
+                run: Mutex::new(Some(run)),
+                join_handle: Mutex::new(Some(handle)),
+            },
         };
 
-        let task = Arc::new(task);
-        self.inner.tasks.write().unwrap().insert(name, task);
+        self.inner
+            .tasks
+            .write()
+            .unwrap()
+            .insert(name, Arc::new(task));
     }
 
     #[cfg(feature = "async")]
@@ -198,18 +187,22 @@ impl TaskPool {
             res
         });
 
-        let task = AsyncTask {
+        let task = Task {
             meta: TaskMetadata {
                 name: name.clone(),
                 started: chrono::Utc::now(),
                 id,
             },
-            join_handle: Mutex::new(Some(handle)),
+            inner: TaskInner::Async {
+                join_handle: Mutex::new(Some(handle)),
+            },
         };
 
-        let task = Arc::new(task);
-
-        self.inner.tasks.write().unwrap().insert(name, task);
+        self.inner
+            .tasks
+            .write()
+            .unwrap()
+            .insert(name, Arc::new(task));
     }
 
     fn remove_by_id(&self, id: u64) -> HackshellResult<()> {
