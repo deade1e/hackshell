@@ -11,6 +11,10 @@ impl Command for Set {
         "Sets an environment variable. Syntax: set <name> <value>"
     }
 
+    fn category(&self) -> &'static str {
+        "Shell"
+    }
+
     fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         if cmd.len() != 3 {
             return Err("Syntax: set <name> <value>".into());

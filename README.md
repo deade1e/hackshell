@@ -64,7 +64,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Adding Custom Commands
 
-You can extend Hackshell with your own commands:
+You can extend Hackshell with your own commands. Commands can specify a category
+which is used by the `help` command to group related commands together.
+If not specified, commands default to the `"User"` category:
 
 ```rust
 use hackshell::{Hackshell, Command, CommandResult};
@@ -80,6 +82,10 @@ impl Command for MyCommand {
         "mycmd - My custom command"
     }
 
+    fn category(&self) -> &'static str {
+        "Custom"  // Groups this command under [Custom] in help output
+    }
+
     fn run(&self, _shell: &Hackshell, args: &[&str]) -> CommandResult {
         println!("My custom command was called with args: {:?}", &args[1..]);
         Ok(None)
@@ -92,10 +98,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Add your custom command
     shell.add_command(MyCommand {});
-    
+
     // Run shell loop
     // ...
-    
+
     Ok(())
 }
 ```
@@ -152,7 +158,7 @@ Add Hackshell to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hackshell = "0.5.0"
+hackshell = "0.6.0"
 ```
 
 ## License

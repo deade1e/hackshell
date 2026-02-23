@@ -11,6 +11,10 @@ impl Command for Get {
         "Prints an environment variable"
     }
 
+    fn category(&self) -> &'static str {
+        "Shell"
+    }
+
     fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         if cmd.len() != 2 {
             return Err("Syntax: get <name>".into());

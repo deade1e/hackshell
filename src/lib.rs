@@ -32,6 +32,10 @@ pub trait Command: Send + Sync + 'static {
 
     fn help(&self) -> &'static str;
 
+    fn category(&self) -> &'static str {
+        "User"
+    }
+
     fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult;
 }
 
@@ -47,6 +51,10 @@ pub trait AsyncCommand: Send + Sync + 'static {
     fn commands(&self) -> &'static [&'static str];
 
     fn help(&self) -> &'static str;
+
+    fn category(&self) -> &'static str {
+        "User"
+    }
 
     async fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult;
 }
@@ -90,6 +98,14 @@ impl CommandEntry {
             CommandInner::Sync(c) => c.help(),
             #[cfg(feature = "async")]
             CommandInner::Async(c) => c.help(),
+        }
+    }
+
+    pub fn category(&self) -> &'static str {
+        match &self.inner {
+            CommandInner::Sync(c) => c.category(),
+            #[cfg(feature = "async")]
+            CommandInner::Async(c) => c.category(),
         }
     }
 
@@ -396,7 +412,7 @@ impl Hackshell {
         self.feed_string_slice(&cmd)
     }
 
-    /// Run the shell. Ask for a line and then call commands or 
+    /// Run the shell. Ask for a line and then call commands or
     pub fn run(&self) -> HackshellResult<Option<String>> {
         let mut rl = self.inner.rl.lock().unwrap();
         let readline = rl.readline(&*self.inner.prompt.read().unwrap());

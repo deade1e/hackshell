@@ -11,6 +11,10 @@ impl Command for Exit {
         "Exits the program"
     }
 
+    fn category(&self) -> &'static str {
+        "Shell"
+    }
+
     fn run(&self, _: &Hackshell, _cmd: &[&str]) -> CommandResult {
         Err(HackshellError::Exit.into())
     }

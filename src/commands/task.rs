@@ -20,6 +20,10 @@ impl Command for Task {
         "Lists and manages tasks"
     }
 
+    fn category(&self) -> &'static str {
+        "Shell"
+    }
+
     fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
         match cmd.get(1).map(|s| s.as_ref()) {
             Some("-h" | "--help") => {

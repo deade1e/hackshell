@@ -11,6 +11,10 @@ impl Command for Env {
         "Prints all environment"
     }
 
+    fn category(&self) -> &'static str {
+        "Shell"
+    }
+
     fn run(&self, s: &Hackshell, _: &[&str]) -> CommandResult {
         for v in s.env() {
             println!("{}={}", v.0, v.1);
