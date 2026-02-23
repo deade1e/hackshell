@@ -21,6 +21,7 @@
         CARGO_BUILD_TARGET = "x86_64-unknown-linux-gnu";
 
         shellHook = ''
+          export SHELL="zsh"
           rustup default stable
           rustup target add x86_64-unknown-linux-gnu
           rustup component add rustfmt rust-analyzer rust-src clippy
