@@ -117,7 +117,7 @@ impl Task {
 #[derive(Default)]
 struct InnerTaskPool {
     task_id: Arc<AtomicU64>,
-    tasks: RwLock<HashMap<String, Arc<Task>>>,
+    tasks: RwLock<HashMap<String, Task>>,
 }
 
 #[derive(Default, Clone)]
@@ -164,11 +164,7 @@ impl TaskPool {
             },
         };
 
-        self.inner
-            .tasks
-            .write()
-            .unwrap()
-            .insert(name, Arc::new(task));
+        self.inner.tasks.write().unwrap().insert(name, task);
     }
 
     #[cfg(feature = "async")]
@@ -198,11 +194,7 @@ impl TaskPool {
             },
         };
 
-        self.inner
-            .tasks
-            .write()
-            .unwrap()
-            .insert(name, Arc::new(task));
+        self.inner.tasks.write().unwrap().insert(name, task);
     }
 
     fn remove_by_id(&self, id: u64) -> HackshellResult<()> {
@@ -236,12 +228,11 @@ impl TaskPool {
     }
 
     pub fn join(&self, name: &str) -> HackshellResult<TaskOutput> {
-        let tasks = self.inner.tasks.read().unwrap();
-        if let Some(task) = tasks.get(name).cloned() {
-            std::mem::drop(tasks);
+        let task = self.inner.tasks.write().unwrap().remove(name);
 
+        if let Some(task) = task {
             match task.join() {
-                // If Ok() the task finished successfully and already removed itself
+                // If Ok() the task finished successfully. The task has already been removed.
                 Ok(ret) => Ok(ret),
                 Err(e) => {
                     if !matches!(e, HackshellError::JoinError(JoinError::AlreadyJoining)) {
@@ -258,10 +249,10 @@ impl TaskPool {
 
     #[cfg(feature = "async")]
     pub async fn join_async(&self, name: &str) -> HackshellResult<TaskOutput> {
-        let tasks = self.inner.tasks.read().unwrap();
+        let task = self.inner.tasks.write().unwrap().remove(name);
 
-        if let Some(task) = tasks.get(name).cloned() {
-            std::mem::drop(tasks);
+        if let Some(task) = task {
+            // std::mem::drop(tasks);
 
             match task.join_async().await {
                 Ok(ret) => Ok(ret),
