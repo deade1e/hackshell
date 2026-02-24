@@ -340,6 +340,10 @@ impl Hackshell {
         self.inner.env.write().unwrap().remove(n);
     }
 
+    pub fn set_prompt(&self, prompt: &str) {
+        *self.inner.prompt.write().unwrap() = prompt.to_string();
+    }
+
     pub fn feed_slice(&self, cmd: &[&str]) -> HackshellResult<Option<String>> {
         if cmd.is_empty() {
             return Ok(None);
