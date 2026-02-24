@@ -12,6 +12,7 @@ with custom commands and integrated into your applications.
 - **Environment Variables**: Built-in environment variable storage and manipulation
 - **Rich Command Set**: Comes with essential built-in commands like `help`, `set`, `get`, `env`, etc.
 - **Command History**: Persistent command history between sessions
+- **Async**: Support async/await via `async` feature.
 
 ## Demo
 
