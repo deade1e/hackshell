@@ -37,7 +37,7 @@ The following are quick examples.
 use hackshell::{Hackshell, error::HackshellError};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new shell with a custom context (in this case just ())
+    // Create a new shell
     let shell = Hackshell::new("basic> ")?;
     shell.set_history_file("history.txt")?;
 
