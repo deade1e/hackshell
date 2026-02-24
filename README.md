@@ -13,6 +13,10 @@ with custom commands and integrated into your applications.
 - **Rich Command Set**: Comes with essential built-in commands like `help`, `set`, `get`, `env`, etc.
 - **Command History**: Persistent command history between sessions
 
+## Demo
+
+![demo](assets/demo.gif)
+
 ## Built-in Commands
 
 Hackshell comes with several built-in commands:
