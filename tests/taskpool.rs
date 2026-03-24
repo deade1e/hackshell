@@ -326,6 +326,71 @@ mod async_tests {
         // Both tasks should have auto-removed
         assert_eq!(pool.get_all().len(), 0);
     }
+
+    #[tokio::test]
+    async fn test_drop_kills_async_tasks() {
+        let task_aborted = Arc::new(AtomicBool::new(false));
+        let task_aborted_clone = task_aborted.clone();
+
+        {
+            let pool = TaskPool::default();
+
+            pool.spawn_async("long_async", async move {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                // This should not execute if task is aborted
+                task_aborted_clone.store(true, Ordering::Relaxed);
+                None
+            });
+
+            // Ensure task is running
+            tokio::time::sleep(Duration::from_millis(50)).await;
+
+            // Pool is dropped here
+        }
+
+        // Give time for abort to propagate
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Task should have been aborted, not completed
+        assert!(!task_aborted.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn test_drop_kills_mixed_tasks() {
+        let sync_stopped = Arc::new(AtomicBool::new(false));
+        let sync_stopped_clone = sync_stopped.clone();
+        let async_completed = Arc::new(AtomicBool::new(false));
+        let async_completed_clone = async_completed.clone();
+
+        {
+            let pool = TaskPool::default();
+
+            pool.spawn("sync_task", move |run| {
+                while run.load(Ordering::Relaxed) {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                sync_stopped_clone.store(true, Ordering::Relaxed);
+                None
+            });
+
+            pool.spawn_async("async_task", async move {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                async_completed_clone.store(true, Ordering::Relaxed);
+                None
+            });
+
+            tokio::time::sleep(Duration::from_millis(50)).await;
+
+            // Pool is dropped here
+        }
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Sync task should have stopped gracefully
+        assert!(sync_stopped.load(Ordering::Relaxed));
+        // Async task should have been aborted
+        assert!(!async_completed.load(Ordering::Relaxed));
+    }
 }
 
 #[test]
@@ -367,4 +432,91 @@ fn test_concurrent_access() {
     // Should have no tasks
     let tasks = pool.get_all();
     assert!(tasks.len() == 0);
+}
+
+#[test]
+fn test_drop_kills_running_tasks() {
+    let task_stopped = Arc::new(AtomicBool::new(false));
+    let task_stopped_clone = task_stopped.clone();
+
+    {
+        let pool = TaskPool::default();
+
+        pool.spawn("long_running", move |run| {
+            while run.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(10));
+            }
+            task_stopped_clone.store(true, Ordering::Relaxed);
+            None
+        });
+
+        // Ensure task is running
+        thread::sleep(Duration::from_millis(50));
+        assert!(!task_stopped.load(Ordering::Relaxed));
+
+        // Pool is dropped here
+    }
+
+    // Give time for task to receive stop signal and exit
+    thread::sleep(Duration::from_millis(100));
+    assert!(task_stopped.load(Ordering::Relaxed));
+}
+
+#[test]
+fn test_drop_kills_multiple_tasks() {
+    let stopped_count = Arc::new(AtomicUsize::new(0));
+
+    {
+        let pool = TaskPool::default();
+
+        for i in 0..5 {
+            let stopped_count_clone = stopped_count.clone();
+            pool.spawn(&format!("task_{}", i), move |run| {
+                while run.load(Ordering::Relaxed) {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                stopped_count_clone.fetch_add(1, Ordering::Relaxed);
+                None
+            });
+        }
+
+        // Ensure tasks are running
+        thread::sleep(Duration::from_millis(50));
+        assert_eq!(stopped_count.load(Ordering::Relaxed), 0);
+
+        // Pool is dropped here
+    }
+
+    // Give time for tasks to stop
+    thread::sleep(Duration::from_millis(100));
+    assert_eq!(stopped_count.load(Ordering::Relaxed), 5);
+}
+
+#[test]
+fn test_drop_only_when_last_clone_dropped() {
+    let task_stopped = Arc::new(AtomicBool::new(false));
+    let task_stopped_clone = task_stopped.clone();
+
+    let pool1 = TaskPool::default();
+    let pool2 = pool1.clone();
+
+    pool1.spawn("shared_task", move |run| {
+        while run.load(Ordering::Relaxed) {
+            thread::sleep(Duration::from_millis(10));
+        }
+        task_stopped_clone.store(true, Ordering::Relaxed);
+        None
+    });
+
+    thread::sleep(Duration::from_millis(50));
+
+    // Drop first clone - task should still be running
+    drop(pool1);
+    thread::sleep(Duration::from_millis(50));
+    assert!(!task_stopped.load(Ordering::Relaxed));
+
+    // Drop second clone - task should now be killed
+    drop(pool2);
+    thread::sleep(Duration::from_millis(100));
+    assert!(task_stopped.load(Ordering::Relaxed));
 }

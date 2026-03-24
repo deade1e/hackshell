@@ -120,6 +120,44 @@ struct InnerTaskPool {
     tasks: RwLock<HashMap<String, Task>>,
 }
 
+impl InnerTaskPool {
+    fn kill_all(&self) {
+        let tasks: Vec<Task> = self
+            .tasks
+            .write()
+            .unwrap()
+            .drain()
+            .map(|(_, t)| t)
+            .collect();
+
+        for task in tasks {
+            let _ = task.kill();
+        }
+    }
+
+    fn remove_by_id(&self, id: u64) -> HackshellResult<()> {
+        let mut tasks = self.tasks.write().unwrap();
+
+        let key = tasks
+            .iter()
+            .find(|(_, v)| v.meta().id == id)
+            .map(|(k, _)| k.clone())
+            .ok_or(HackshellError::TaskNotFound)?;
+
+        let (_, task) = tasks.remove_entry(&key).unwrap();
+
+        task.kill()?;
+
+        Ok(())
+    }
+}
+
+impl Drop for InnerTaskPool {
+    fn drop(&mut self) {
+        self.kill_all()
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct TaskPool {
     inner: Arc<InnerTaskPool>,
@@ -136,7 +174,7 @@ impl TaskPool {
     {
         let run = Arc::new(AtomicBool::new(true));
         let run_ref = run.clone();
-        let self_ref = self.clone();
+        let weak_inner = Arc::downgrade(&self.inner);
         let name = name.to_string();
 
         // There could or could not be the task with the same name.
@@ -147,8 +185,10 @@ impl TaskPool {
         let handle = std::thread::spawn(move || {
             let ret = func(run_ref);
 
-            // Automatic removal once it's finished
-            let _ = self_ref.remove_by_id(id);
+            // Automatic removal once it's finished (if pool still exists)
+            if let Some(inner) = weak_inner.upgrade() {
+                let _ = inner.remove_by_id(id);
+            }
             ret
         });
 
@@ -174,12 +214,15 @@ impl TaskPool {
     {
         let _ = self.remove(&name);
         let id = self.gen_task_id();
-        let self_ref = self.clone();
+        let weak_inner = Arc::downgrade(&self.inner);
         let name = name.to_string();
 
         let handle: tokio::task::JoinHandle<TaskOutput> = tokio::spawn(async move {
             let res = func.await;
-            let _ = self_ref.remove_by_id(id);
+            // Automatic removal once it's finished (if pool still exists)
+            if let Some(inner) = weak_inner.upgrade() {
+                let _ = inner.remove_by_id(id);
+            }
             res
         });
 
@@ -198,19 +241,7 @@ impl TaskPool {
     }
 
     fn remove_by_id(&self, id: u64) -> HackshellResult<()> {
-        let mut tasks = self.inner.tasks.write().unwrap();
-
-        let key = tasks
-            .iter()
-            .find(|(_, v)| v.meta().id == id)
-            .map(|(k, _)| k.clone())
-            .ok_or(HackshellError::TaskNotFound)?;
-
-        let (_, task) = tasks.remove_entry(&key).unwrap();
-
-        task.kill()?;
-
-        Ok(())
+        self.inner.remove_by_id(id)
     }
 
     pub fn remove(&self, name: &str) -> HackshellResult<()> {
@@ -225,6 +256,10 @@ impl TaskPool {
         task.kill()?;
 
         Ok(())
+    }
+
+    pub fn kill_all(&self) {
+        self.inner.kill_all()
     }
 
     pub fn join(&self, name: &str) -> HackshellResult<TaskOutput> {

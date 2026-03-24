@@ -248,6 +248,10 @@ impl Hackshell {
         self.inner.pool.remove(name)
     }
 
+    pub fn terminate_all(&self) {
+        self.inner.pool.kill_all()
+    }
+
     pub fn join(&self, name: &str) -> HackshellResult<TaskOutput> {
         self.inner.pool.join(name)
     }
