@@ -236,12 +236,29 @@ impl Hackshell {
         self.inner.pool.spawn(name, func);
     }
 
+    /// Spawn a hidden task that won't show in normal task listings.
+    pub fn spawn_hidden<F>(&self, name: &str, func: F)
+    where
+        F: FnOnce(Arc<AtomicBool>) -> TaskOutput + Send + 'static,
+    {
+        self.inner.pool.spawn_hidden(name, func);
+    }
+
     #[cfg(feature = "async")]
     pub fn spawn_async<F>(&self, name: &str, func: F)
     where
         F: Future<Output = TaskOutput> + Send + Sync + 'static,
     {
         self.inner.pool.spawn_async(name, func);
+    }
+
+    /// Spawn a hidden async task that won't show in normal task listings.
+    #[cfg(feature = "async")]
+    pub fn spawn_async_hidden<F>(&self, name: &str, func: F)
+    where
+        F: Future<Output = TaskOutput> + Send + Sync + 'static,
+    {
+        self.inner.pool.spawn_async_hidden(name, func);
     }
 
     pub fn terminate(&self, name: &str) -> HackshellResult<()> {
@@ -307,6 +324,11 @@ impl Hackshell {
 
     pub fn get_tasks(&self) -> Vec<TaskMetadata> {
         self.inner.pool.get_all()
+    }
+
+    /// Get all tasks, optionally including hidden ones.
+    pub fn get_tasks_filtered(&self, include_hidden: bool) -> Vec<TaskMetadata> {
+        self.inner.pool.get_all_filtered(include_hidden)
     }
 
     pub fn get_commands(&self) -> Vec<CommandEntry> {

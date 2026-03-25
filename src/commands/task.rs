@@ -6,6 +6,7 @@ Usage: task [OPTIONS]
 Options:
   -t, --terminate <name>  Terminate the task
   -w, --wait <name>       Wait for the task (blocks until it ends)
+  --hidden                Show hidden tasks in the listing
   -h, --help              Print this help message
 ";
 
@@ -25,6 +26,8 @@ impl Command for Task {
     }
 
     fn run(&self, s: &Hackshell, cmd: &[&str]) -> CommandResult {
+        let mut include_hidden = false;
+
         match cmd.get(1).map(|s| s.as_ref()) {
             Some("-h" | "--help") => {
                 eprint!("{}", TASK_HELP);
@@ -40,13 +43,16 @@ impl Command for Task {
                 s.join(name)?;
                 return Ok(None);
             }
+            Some("--hidden") => {
+                include_hidden = true;
+            }
             Some(flag) if flag.starts_with('-') => {
                 return Err(format!("Unknown flag: {}", flag).into());
             }
             _ => {}
         }
 
-        let tasks = s.get_tasks();
+        let tasks = s.get_tasks_filtered(include_hidden);
 
         if tasks.is_empty() {
             eprintln!("No running tasks");

@@ -520,3 +520,53 @@ fn test_drop_only_when_last_clone_dropped() {
     thread::sleep(Duration::from_millis(100));
     assert!(task_stopped.load(Ordering::Relaxed));
 }
+
+#[test]
+fn test_hidden_task_not_in_default_listing() {
+    let pool = TaskPool::default();
+
+    pool.spawn("visible", |_run| {
+        thread::sleep(Duration::from_millis(100));
+        None
+    });
+
+    pool.spawn_hidden("hidden", |_run| {
+        thread::sleep(Duration::from_millis(100));
+        None
+    });
+
+    // Default listing should only show visible task
+    let tasks = pool.get_all();
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0].name, "visible");
+
+    // Filtered listing should show both
+    let all_tasks = pool.get_all_filtered(true);
+    assert_eq!(all_tasks.len(), 2);
+
+    pool.kill_all();
+}
+
+#[test]
+fn test_hidden_task_metadata() {
+    let pool = TaskPool::default();
+
+    pool.spawn("visible", |_run| {
+        thread::sleep(Duration::from_millis(100));
+        None
+    });
+
+    pool.spawn_hidden("hidden", |_run| {
+        thread::sleep(Duration::from_millis(100));
+        None
+    });
+
+    let all_tasks = pool.get_all_filtered(true);
+    let visible = all_tasks.iter().find(|t| t.name == "visible").unwrap();
+    let hidden = all_tasks.iter().find(|t| t.name == "hidden").unwrap();
+
+    assert!(!visible.hidden);
+    assert!(hidden.hidden);
+
+    pool.kill_all();
+}
