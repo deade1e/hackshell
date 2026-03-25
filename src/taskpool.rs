@@ -13,12 +13,22 @@ use std::{
     thread::JoinHandle,
 };
 
+/// Options for spawning a task.
+#[derive(Clone, Default)]
+pub struct TaskOptions {
+    /// If true, the task won't show in normal task listings.
+    pub hidden: bool,
+    /// If true, the task cannot be terminated via the task command.
+    pub protected: bool,
+}
+
 #[derive(Clone)]
 pub struct TaskMetadata {
     pub name: String,
     pub started: chrono::DateTime<chrono::Utc>,
     pub id: u64,
     pub hidden: bool,
+    pub protected: bool,
 }
 
 pub type TaskOutput = Option<Box<dyn Any + Send>>;
@@ -169,22 +179,14 @@ impl TaskPool {
         self.inner.task_id.fetch_add(1, Ordering::Relaxed)
     }
 
-    pub fn spawn<F>(&self, name: &str, func: F)
+    pub fn spawn<F>(&self, name: &str, opts: TaskOptions, func: F)
     where
         F: FnOnce(Arc<AtomicBool>) -> TaskOutput + Send + 'static,
     {
-        self.spawn_inner(name, func, false);
+        self.spawn_inner(name, opts, func);
     }
 
-    /// Spawn a hidden task that won't show in normal task listings.
-    pub fn spawn_hidden<F>(&self, name: &str, func: F)
-    where
-        F: FnOnce(Arc<AtomicBool>) -> TaskOutput + Send + 'static,
-    {
-        self.spawn_inner(name, func, true);
-    }
-
-    fn spawn_inner<F>(&self, name: &str, func: F, hidden: bool)
+    fn spawn_inner<F>(&self, name: &str, opts: TaskOptions, func: F)
     where
         F: FnOnce(Arc<AtomicBool>) -> TaskOutput + Send + 'static,
     {
@@ -213,7 +215,8 @@ impl TaskPool {
                 name: name.clone(),
                 started: chrono::Utc::now(),
                 id,
-                hidden,
+                hidden: opts.hidden,
+                protected: opts.protected,
             },
             inner: TaskInner::Sync {
                 run: Mutex::new(Some(run)),
@@ -225,24 +228,15 @@ impl TaskPool {
     }
 
     #[cfg(feature = "async")]
-    pub fn spawn_async<F>(&self, name: &str, func: F)
+    pub fn spawn_async<F>(&self, name: &str, opts: TaskOptions, func: F)
     where
         F: Future<Output = TaskOutput> + Send + Sync + 'static,
     {
-        self.spawn_async_inner(name, func, false);
-    }
-
-    /// Spawn a hidden async task that won't show in normal task listings.
-    #[cfg(feature = "async")]
-    pub fn spawn_async_hidden<F>(&self, name: &str, func: F)
-    where
-        F: Future<Output = TaskOutput> + Send + Sync + 'static,
-    {
-        self.spawn_async_inner(name, func, true);
+        self.spawn_async_inner(name, opts, func);
     }
 
     #[cfg(feature = "async")]
-    fn spawn_async_inner<F>(&self, name: &str, func: F, hidden: bool)
+    fn spawn_async_inner<F>(&self, name: &str, opts: TaskOptions, func: F)
     where
         F: Future<Output = TaskOutput> + Send + Sync + 'static,
     {
@@ -265,7 +259,8 @@ impl TaskPool {
                 name: name.clone(),
                 started: chrono::Utc::now(),
                 id,
-                hidden,
+                hidden: opts.hidden,
+                protected: opts.protected,
             },
             inner: TaskInner::Async {
                 join_handle: Mutex::new(Some(handle)),
@@ -341,6 +336,16 @@ impl TaskPool {
     /// Get all visible (non-hidden) tasks.
     pub fn get_all(&self) -> Vec<TaskMetadata> {
         self.get_all_filtered(false)
+    }
+
+    /// Check if a task is protected.
+    pub fn is_protected(&self, name: &str) -> Option<bool> {
+        self.inner
+            .tasks
+            .read()
+            .unwrap()
+            .get(name)
+            .map(|t| t.meta().protected)
     }
 
     /// Get all tasks, optionally including hidden ones.

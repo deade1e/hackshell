@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use hackshell::taskpool::TaskPool;
+use hackshell::taskpool::{TaskOptions, TaskPool};
 
 #[test]
 fn test_spawn_and_execute_task() {
@@ -11,7 +11,7 @@ fn test_spawn_and_execute_task() {
     let executed = Arc::new(AtomicBool::new(false));
     let executed_clone = executed.clone();
 
-    pool.spawn("test_task", move |run| {
+    pool.spawn("test_task", TaskOptions::default(), move |run| {
         while run.load(Ordering::Relaxed) {
             executed_clone.store(true, Ordering::Relaxed);
             break;
@@ -28,7 +28,7 @@ fn test_task_metadata() {
     let pool = TaskPool::default();
     let task_name = "metadata_test";
 
-    pool.spawn(task_name, |run| {
+    pool.spawn(task_name, TaskOptions::default(), |run| {
         while run.load(Ordering::Relaxed) {
             thread::sleep(Duration::from_millis(10));
         }
@@ -51,7 +51,7 @@ fn test_remove_task() {
     let still_running = Arc::new(AtomicBool::new(true));
     let still_running_clone = still_running.clone();
 
-    pool.spawn("removable_task", move |run| {
+    pool.spawn("removable_task", TaskOptions::default(), move |run| {
         while run.load(Ordering::Relaxed) {
             thread::sleep(Duration::from_millis(10));
         }
@@ -86,7 +86,7 @@ fn test_join_for_task() {
     let completed = Arc::new(AtomicBool::new(false));
     let completed_clone = completed.clone();
 
-    pool.spawn("join_task", move |_run| {
+    pool.spawn("join_task", TaskOptions::default(), move |_run| {
         thread::sleep(Duration::from_millis(100));
         completed_clone.store(true, Ordering::Relaxed);
         None
@@ -117,7 +117,7 @@ fn test_spawn_with_same_name_kills_previous() {
     let second_task_started_clone = second_task_started.clone();
 
     // Spawn first task
-    pool.spawn("duplicate_name", move |run| {
+    pool.spawn("duplicate_name", TaskOptions::default(), move |run| {
         while run.load(Ordering::Relaxed) {
             thread::sleep(Duration::from_millis(10));
         }
@@ -129,7 +129,7 @@ fn test_spawn_with_same_name_kills_previous() {
     assert!(first_task_running.load(Ordering::Relaxed));
 
     // Spawn second task with same name
-    pool.spawn("duplicate_name", move |_run| {
+    pool.spawn("duplicate_name", TaskOptions::default(), move |_run| {
         second_task_started_clone.store(true, Ordering::Relaxed);
         thread::sleep(Duration::from_millis(50));
         None
@@ -150,11 +150,15 @@ fn test_multiple_tasks() {
 
     for i in 0..5 {
         let counter_clone = counter.clone();
-        pool.spawn(&format!("task_{}", i), move |_run| {
-            counter_clone.fetch_add(1, Ordering::Relaxed);
-            thread::sleep(Duration::from_millis(50));
-            None
-        });
+        pool.spawn(
+            &format!("task_{}", i),
+            TaskOptions::default(),
+            move |_run| {
+                counter_clone.fetch_add(1, Ordering::Relaxed);
+                thread::sleep(Duration::from_millis(50));
+                None
+            },
+        );
     }
 
     thread::sleep(Duration::from_millis(100));
@@ -171,7 +175,7 @@ fn test_multiple_tasks() {
 fn test_auto_removal_on_completion() {
     let pool = TaskPool::default();
 
-    pool.spawn("auto_remove", |_run| {
+    pool.spawn("auto_remove", TaskOptions::default(), |_run| {
         // Task completes immediately
         None
     });
@@ -188,7 +192,7 @@ fn test_clone_pool() {
     let pool1 = TaskPool::default();
     let pool2 = pool1.clone();
 
-    pool1.spawn("task_from_pool1", |_run| {
+    pool1.spawn("task_from_pool1", TaskOptions::default(), |_run| {
         thread::sleep(Duration::from_millis(100));
         None
     });
@@ -217,7 +221,7 @@ mod async_tests {
         let executed = Arc::new(AtomicBool::new(false));
         let executed_clone = executed.clone();
 
-        pool.spawn_async("async_task", async move {
+        pool.spawn_async("async_task", TaskOptions::default(), async move {
             tokio::time::sleep(Duration::from_millis(50)).await;
             executed_clone.store(true, Ordering::Relaxed);
             None
@@ -231,7 +235,7 @@ mod async_tests {
     async fn test_async_task_metadata() {
         let pool = TaskPool::default();
 
-        pool.spawn_async("async_metadata_test", async {
+        pool.spawn_async("async_metadata_test", TaskOptions::default(), async {
             tokio::time::sleep(Duration::from_millis(100)).await;
             None
         });
@@ -249,7 +253,7 @@ mod async_tests {
         let still_running = Arc::new(AtomicBool::new(true));
         let still_running_clone = still_running.clone();
 
-        pool.spawn_async("killable_async", async move {
+        pool.spawn_async("killable_async", TaskOptions::default(), async move {
             tokio::time::sleep(Duration::from_secs(10)).await;
             still_running_clone.store(false, Ordering::Relaxed);
             None
@@ -272,7 +276,7 @@ mod async_tests {
         let completed = Arc::new(AtomicBool::new(false));
         let completed_clone = completed.clone();
 
-        pool.spawn_async("join_async", async move {
+        pool.spawn_async("join_async", TaskOptions::default(), async move {
             tokio::time::sleep(Duration::from_millis(100)).await;
             completed_clone.store(true, Ordering::Relaxed);
             None
@@ -287,7 +291,7 @@ mod async_tests {
     async fn test_async_auto_removal() {
         let pool = TaskPool::default();
 
-        pool.spawn_async("async_auto_remove", async {
+        pool.spawn_async("async_auto_remove", TaskOptions::default(), async {
             tokio::time::sleep(Duration::from_millis(50)).await;
             None
         });
@@ -306,13 +310,13 @@ mod async_tests {
         let async_counter = Arc::new(AtomicUsize::new(0));
 
         let sync_counter_clone = sync_counter.clone();
-        pool.spawn("sync_task", move |_run| {
+        pool.spawn("sync_task", TaskOptions::default(), move |_run| {
             sync_counter_clone.fetch_add(1, Ordering::Relaxed);
             None
         });
 
         let async_counter_clone = async_counter.clone();
-        pool.spawn_async("async_task", async move {
+        pool.spawn_async("async_task", TaskOptions::default(), async move {
             async_counter_clone.fetch_add(1, Ordering::Relaxed);
             None
         });
@@ -335,7 +339,7 @@ mod async_tests {
         {
             let pool = TaskPool::default();
 
-            pool.spawn_async("long_async", async move {
+            pool.spawn_async("long_async", TaskOptions::default(), async move {
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 // This should not execute if task is aborted
                 task_aborted_clone.store(true, Ordering::Relaxed);
@@ -365,7 +369,7 @@ mod async_tests {
         {
             let pool = TaskPool::default();
 
-            pool.spawn("sync_task", move |run| {
+            pool.spawn("sync_task", TaskOptions::default(), move |run| {
                 while run.load(Ordering::Relaxed) {
                     thread::sleep(Duration::from_millis(10));
                 }
@@ -373,7 +377,7 @@ mod async_tests {
                 None
             });
 
-            pool.spawn_async("async_task", async move {
+            pool.spawn_async("async_task", TaskOptions::default(), async move {
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 async_completed_clone.store(true, Ordering::Relaxed);
                 None
@@ -403,10 +407,14 @@ fn test_concurrent_access() {
     let handle1 = thread::spawn(move || {
         barrier1.wait();
         for i in 0..10 {
-            pool1.spawn(&format!("thread1_task_{}", i), |_run| {
-                thread::sleep(Duration::from_millis(10));
-                None
-            });
+            pool1.spawn(
+                &format!("thread1_task_{}", i),
+                TaskOptions::default(),
+                |_run| {
+                    thread::sleep(Duration::from_millis(10));
+                    None
+                },
+            );
         }
     });
 
@@ -415,10 +423,14 @@ fn test_concurrent_access() {
     let handle2 = thread::spawn(move || {
         barrier2.wait();
         for i in 0..10 {
-            pool2.spawn(&format!("thread2_task_{}", i), |_run| {
-                thread::sleep(Duration::from_millis(10));
-                None
-            });
+            pool2.spawn(
+                &format!("thread2_task_{}", i),
+                TaskOptions::default(),
+                |_run| {
+                    thread::sleep(Duration::from_millis(10));
+                    None
+                },
+            );
         }
     });
 
@@ -442,7 +454,7 @@ fn test_drop_kills_running_tasks() {
     {
         let pool = TaskPool::default();
 
-        pool.spawn("long_running", move |run| {
+        pool.spawn("long_running", TaskOptions::default(), move |run| {
             while run.load(Ordering::Relaxed) {
                 thread::sleep(Duration::from_millis(10));
             }
@@ -471,7 +483,7 @@ fn test_drop_kills_multiple_tasks() {
 
         for i in 0..5 {
             let stopped_count_clone = stopped_count.clone();
-            pool.spawn(&format!("task_{}", i), move |run| {
+            pool.spawn(&format!("task_{}", i), TaskOptions::default(), move |run| {
                 while run.load(Ordering::Relaxed) {
                     thread::sleep(Duration::from_millis(10));
                 }
@@ -500,7 +512,7 @@ fn test_drop_only_when_last_clone_dropped() {
     let pool1 = TaskPool::default();
     let pool2 = pool1.clone();
 
-    pool1.spawn("shared_task", move |run| {
+    pool1.spawn("shared_task", TaskOptions::default(), move |run| {
         while run.load(Ordering::Relaxed) {
             thread::sleep(Duration::from_millis(10));
         }
@@ -525,15 +537,22 @@ fn test_drop_only_when_last_clone_dropped() {
 fn test_hidden_task_not_in_default_listing() {
     let pool = TaskPool::default();
 
-    pool.spawn("visible", |_run| {
+    pool.spawn("visible", TaskOptions::default(), |_run| {
         thread::sleep(Duration::from_millis(100));
         None
     });
 
-    pool.spawn_hidden("hidden", |_run| {
-        thread::sleep(Duration::from_millis(100));
-        None
-    });
+    pool.spawn(
+        "hidden",
+        TaskOptions {
+            hidden: true,
+            ..Default::default()
+        },
+        |_run| {
+            thread::sleep(Duration::from_millis(100));
+            None
+        },
+    );
 
     // Default listing should only show visible task
     let tasks = pool.get_all();
@@ -551,15 +570,22 @@ fn test_hidden_task_not_in_default_listing() {
 fn test_hidden_task_metadata() {
     let pool = TaskPool::default();
 
-    pool.spawn("visible", |_run| {
+    pool.spawn("visible", TaskOptions::default(), |_run| {
         thread::sleep(Duration::from_millis(100));
         None
     });
 
-    pool.spawn_hidden("hidden", |_run| {
-        thread::sleep(Duration::from_millis(100));
-        None
-    });
+    pool.spawn(
+        "hidden",
+        TaskOptions {
+            hidden: true,
+            ..Default::default()
+        },
+        |_run| {
+            thread::sleep(Duration::from_millis(100));
+            None
+        },
+    );
 
     let all_tasks = pool.get_all_filtered(true);
     let visible = all_tasks.iter().find(|t| t.name == "visible").unwrap();
@@ -569,4 +595,50 @@ fn test_hidden_task_metadata() {
     assert!(hidden.hidden);
 
     pool.kill_all();
+}
+
+#[test]
+fn test_protected_task_cannot_be_terminated_via_command() {
+    use hackshell::{Hackshell, error::HackshellError};
+
+    let shell = Hackshell::new("> ").unwrap();
+
+    // Spawn a protected task
+    shell.spawn(
+        "protected_task",
+        TaskOptions {
+            protected: true,
+            ..Default::default()
+        },
+        |run| {
+            while run.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(10));
+            }
+            None
+        },
+    );
+
+    thread::sleep(Duration::from_millis(50));
+
+    // Trying to terminate via the task command should fail
+    let result = shell.feed_line("task --terminate protected_task");
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        HackshellError::TaskIsProtected
+    ));
+
+    // Task should still be running
+    let tasks = shell.get_tasks();
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0].name, "protected_task");
+
+    // Programmatic termination should work
+    assert!(shell.terminate("protected_task").is_ok());
+
+    thread::sleep(Duration::from_millis(50));
+
+    // Task should be gone
+    let tasks = shell.get_tasks();
+    assert!(tasks.is_empty());
 }

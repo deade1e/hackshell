@@ -1,6 +1,6 @@
 use std::{error::Error, thread::sleep, time::Duration};
 
-use hackshell::{Command, CommandResult, Hackshell, error::HackshellError};
+use hackshell::{Command, CommandResult, Hackshell, TaskOptions, error::HackshellError};
 
 struct RunTask {}
 
@@ -21,7 +21,7 @@ impl Command for RunTask {
         // .to_estring() comes from the hackshell::error::MapErrToString trait
         let n = cmd[1].parse::<u64>()?;
 
-        s.spawn("runtask", move |run| {
+        s.spawn("runtask", TaskOptions::default(), move |run| {
             let mut c = 10;
             println!("RunTask started. Use the `task` command to see it! This task will finish after 10 prints or can be terminated by issuing `task -t runtask`.\r");
 

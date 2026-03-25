@@ -1,4 +1,4 @@
-use crate::{Command, CommandResult, Hackshell};
+use crate::{Command, CommandResult, Hackshell, error::HackshellError};
 
 const TASK_HELP: &str = "\
 Usage: task [OPTIONS]
@@ -35,6 +35,9 @@ impl Command for Task {
             }
             Some("-t" | "--terminate") => {
                 let name = cmd.get(2).ok_or("Missing task name for --terminate")?;
+                if s.is_protected(name).unwrap_or(false) {
+                    return Err(HackshellError::TaskIsProtected.into());
+                }
                 s.terminate(name)?;
                 return Ok(None);
             }
@@ -60,16 +63,16 @@ impl Command for Task {
         }
 
         // Print a cool table header
-        eprintln!("\n{:<24} {:<24}", "Task", "Started at");
-        eprintln!("{:<24} {:<24}\n", "----", "----------");
+        eprintln!("\n{:<24} {:<24} {:<10}", "Task", "Started at", "Protected");
+        eprintln!("{:<24} {:<24} {:<10}\n", "----", "----------", "---------");
 
-        // For each task print its name and start time
-        // If there is none, just print a kind message
+        // For each task print its name, start time, and protected status
         for task in tasks {
             eprintln!(
-                "{:<24} {:<24}",
+                "{:<24} {:<24} {:<10}",
                 task.name,
-                task.started.format("%Y-%m-%d %H:%M:%S")
+                task.started.format("%Y-%m-%d %H:%M:%S"),
+                if task.protected { "yes" } else { "no" }
             );
         }
 

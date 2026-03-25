@@ -116,13 +116,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Hackshell allows you to spawn and manage background tasks:
 
 ```rust
-use hackshell::Hackshell;
+use hackshell::{Hackshell, TaskOptions};
 use std::sync::atomic::Ordering;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shell = Hackshell::new("> ")?;
 
-    shell.spawn("my-task", |run| {
+    shell.spawn("my-task", TaskOptions::default(), |run| {
         while run.load(Ordering::Relaxed) {
             // do work...
         }
@@ -163,7 +163,7 @@ Add Hackshell to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hackshell = "0.6.3"
+hackshell = "0.7.0"
 ```
 
 ## License

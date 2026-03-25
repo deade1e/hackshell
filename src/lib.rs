@@ -22,6 +22,7 @@ use commands::{
     env::Env, exit::Exit, get::Get, help::Help, set::Set, sleep::Sleep, task::Task, unset::Unset,
 };
 use rustyline::{DefaultEditor, error::ReadlineError};
+pub use taskpool::TaskOptions;
 use taskpool::{TaskMetadata, TaskPool};
 
 pub type CommandResult =
@@ -229,40 +230,28 @@ impl Hackshell {
         self
     }
 
-    pub fn spawn<F>(&self, name: &str, func: F)
+    pub fn spawn<F>(&self, name: &str, opts: TaskOptions, func: F)
     where
         F: FnOnce(Arc<AtomicBool>) -> TaskOutput + Send + 'static,
     {
-        self.inner.pool.spawn(name, func);
-    }
-
-    /// Spawn a hidden task that won't show in normal task listings.
-    pub fn spawn_hidden<F>(&self, name: &str, func: F)
-    where
-        F: FnOnce(Arc<AtomicBool>) -> TaskOutput + Send + 'static,
-    {
-        self.inner.pool.spawn_hidden(name, func);
+        self.inner.pool.spawn(name, opts, func);
     }
 
     #[cfg(feature = "async")]
-    pub fn spawn_async<F>(&self, name: &str, func: F)
+    pub fn spawn_async<F>(&self, name: &str, opts: TaskOptions, func: F)
     where
         F: Future<Output = TaskOutput> + Send + Sync + 'static,
     {
-        self.inner.pool.spawn_async(name, func);
-    }
-
-    /// Spawn a hidden async task that won't show in normal task listings.
-    #[cfg(feature = "async")]
-    pub fn spawn_async_hidden<F>(&self, name: &str, func: F)
-    where
-        F: Future<Output = TaskOutput> + Send + Sync + 'static,
-    {
-        self.inner.pool.spawn_async_hidden(name, func);
+        self.inner.pool.spawn_async(name, opts, func);
     }
 
     pub fn terminate(&self, name: &str) -> HackshellResult<()> {
         self.inner.pool.remove(name)
+    }
+
+    /// Check if a task is protected.
+    pub fn is_protected(&self, name: &str) -> Option<bool> {
+        self.inner.pool.is_protected(name)
     }
 
     pub fn terminate_all(&self) {

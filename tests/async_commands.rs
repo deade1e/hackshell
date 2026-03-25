@@ -1,8 +1,11 @@
 #![cfg(feature = "async")]
 
-use hackshell::{async_trait, AsyncCommand, Command, CommandResult, Hackshell, error::HackshellError};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use hackshell::{
+    AsyncCommand, Command, CommandResult, Hackshell, TaskOptions, async_trait,
+    error::HackshellError,
+};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 // A simple sync command for testing
@@ -210,7 +213,7 @@ async fn test_async_command_can_spawn_tasks() {
 
         async fn run(&self, shell: &Hackshell, _cmd: &[&str]) -> CommandResult {
             let flag = self.flag.clone();
-            shell.spawn_async("spawned-task", async move {
+            shell.spawn_async("spawned-task", TaskOptions::default(), async move {
                 flag.store(true, Ordering::Relaxed);
                 None
             });

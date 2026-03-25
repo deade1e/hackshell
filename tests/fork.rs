@@ -1,4 +1,4 @@
-use hackshell::Hackshell;
+use hackshell::{Hackshell, TaskOptions};
 
 #[test]
 fn test_fork_inherits_environment() {
@@ -34,7 +34,10 @@ fn test_fork_child_env_independent_from_parent() {
     assert_eq!(parent.get_var("child_only"), None);
 
     // Child should have the modified values
-    assert_eq!(child.get_var("shared"), Some("modified_by_child".to_string()));
+    assert_eq!(
+        child.get_var("shared"),
+        Some("modified_by_child".to_string())
+    );
     assert_eq!(child.get_var("child_only"), Some("exists".to_string()));
 }
 
@@ -74,7 +77,7 @@ fn test_fork_child_has_separate_task_pool() {
     let child = parent.fork("child> ").unwrap();
 
     // Spawn a task in the parent
-    parent.spawn("parent_task", |_run| {
+    parent.spawn("parent_task", TaskOptions::default(), |_run| {
         std::thread::sleep(std::time::Duration::from_millis(100));
         None
     });
