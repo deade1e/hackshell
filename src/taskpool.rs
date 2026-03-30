@@ -230,7 +230,7 @@ impl TaskPool {
     #[cfg(feature = "async")]
     pub fn spawn_async<F>(&self, name: &str, opts: TaskOptions, func: F)
     where
-        F: Future<Output = TaskOutput> + Send + Sync + 'static,
+        F: Future<Output = TaskOutput> + Send + 'static,
     {
         self.spawn_async_inner(name, opts, func);
     }
@@ -238,7 +238,7 @@ impl TaskPool {
     #[cfg(feature = "async")]
     fn spawn_async_inner<F>(&self, name: &str, opts: TaskOptions, func: F)
     where
-        F: Future<Output = TaskOutput> + Send + Sync + 'static,
+        F: Future<Output = TaskOutput> + Send + 'static,
     {
         let _ = self.remove(name);
         let id = self.gen_task_id();

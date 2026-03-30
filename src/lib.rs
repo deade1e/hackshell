@@ -240,7 +240,7 @@ impl Hackshell {
     #[cfg(feature = "async")]
     pub fn spawn_async<F>(&self, name: &str, opts: TaskOptions, func: F)
     where
-        F: Future<Output = TaskOutput> + Send + Sync + 'static,
+        F: Future<Output = TaskOutput> + Send + 'static,
     {
         self.inner.pool.spawn_async(name, opts, func);
     }
